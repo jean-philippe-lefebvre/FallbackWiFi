@@ -43,11 +43,27 @@ struct SystemWiFiManager: WiFiManaging {
     }
 
     func connect(to ssid: String) async throws {
-        let interface = try await wifiInterface()
-        let result = await ShellCommand.run(networksetup, ["-setairportnetwork", interface, ssid])
-        guard result.exitCode == 0 else {
-            throw WiFiError.commandFailed(result.standardError)
+        let password = await keychainPassword(for: ssid)
+
+        do {
+            try await connectWithCoreWLAN(to: ssid, password: password)
+            NSLog("FallbackWiFi joined \(ssid) with CoreWLAN")
+            return
+        } catch {
+            NSLog("FallbackWiFi CoreWLAN join failed for \(ssid): \(error.localizedDescription)")
         }
+
+        let interface = try await wifiInterface()
+        var arguments = ["-setairportnetwork", interface, ssid]
+        if let password {
+            arguments.append(password)
+        }
+
+        let result = await ShellCommand.run(networksetup, arguments)
+        guard result.exitCode == 0 else {
+            throw WiFiError.commandFailed(result.standardError.isEmpty ? "Failed to join \(ssid)" : result.standardError)
+        }
+        NSLog("FallbackWiFi joined \(ssid) with networksetup")
     }
 
     private func wifiInterface() async throws -> String {
@@ -77,5 +93,31 @@ struct SystemWiFiManager: WiFiManaging {
                 return []
             }
         }.value
+    }
+
+    private func connectWithCoreWLAN(to ssid: String, password: String?) async throws {
+        try await Task.detached {
+            guard let interface = CWWiFiClient.shared().interface() else {
+                throw WiFiError.commandFailed("CoreWLAN interface not found")
+            }
+
+            let networks = try interface.scanForNetworks(withName: ssid)
+            guard let network = networks.max(by: { $0.rssiValue < $1.rssiValue }) else {
+                throw WiFiError.commandFailed("\(ssid) is not visible")
+            }
+
+            try interface.associate(to: network, password: password)
+        }.value
+    }
+
+    private func keychainPassword(for ssid: String) async -> String? {
+        let result = await ShellCommand.run(
+            "/usr/bin/security",
+            ["find-generic-password", "-D", "AirPort network password", "-a", ssid, "-w"]
+        )
+        guard result.exitCode == 0 else { return nil }
+
+        let password = result.standardOutput.trimmingCharacters(in: .whitespacesAndNewlines)
+        return password.isEmpty ? nil : password
     }
 }

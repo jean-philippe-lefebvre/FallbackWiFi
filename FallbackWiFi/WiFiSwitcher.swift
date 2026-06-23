@@ -92,27 +92,34 @@ final class WiFiSwitcher: ObservableObject {
         state = .checking
 
         let backupSSID = settings.backupSSID
+        NSLog("FallbackWiFi check started. backup=\(backupSSID.isEmpty ? "none" : backupSSID), allowSwitch=\(allowSwitch), autoSwitch=\(settings.autoSwitchEnabled)")
+
         guard !backupSSID.isEmpty else {
             state = .noBackupSelected
             currentSSID = nil
+            NSLog("FallbackWiFi check stopped: no backup selected")
             return
         }
 
         do {
             let ssid = try await wifiManager.currentNetwork()
             currentSSID = ssid
+            NSLog("FallbackWiFi current SSID: \(ssid ?? "none")")
 
             if ssid == backupSSID {
                 lastConnectedFallbackSSID = backupSSID
                 state = .fallbackActive(backupSSID)
+                NSLog("FallbackWiFi backup already active")
                 return
             }
 
             let hasInternet = await internetChecker.hasInternetAccess()
+            NSLog("FallbackWiFi internet access: \(hasInternet)")
             if hasInternet {
                 if ssid == nil, lastConnectedFallbackSSID == backupSSID {
                     currentSSID = backupSSID
                     state = .fallbackActive(backupSSID)
+                    NSLog("FallbackWiFi keeping fallback active after SSID readback disappeared")
                     return
                 }
 
@@ -123,16 +130,20 @@ final class WiFiSwitcher: ObservableObject {
 
             guard settings.autoSwitchEnabled, allowSwitch else {
                 state = ssid == nil ? .disconnected : .error("No internet access")
+                NSLog("FallbackWiFi not switching: autoSwitch=\(settings.autoSwitchEnabled), allowSwitch=\(allowSwitch)")
                 return
             }
 
             state = .switching(backupSSID)
+            NSLog("FallbackWiFi switching to backup: \(backupSSID)")
             try await wifiManager.connect(to: backupSSID)
             lastConnectedFallbackSSID = backupSSID
             currentSSID = backupSSID
             state = .fallbackActive(backupSSID)
+            NSLog("FallbackWiFi switch complete: \(backupSSID)")
         } catch {
             state = .error(error.localizedDescription)
+            NSLog("FallbackWiFi check failed: \(error.localizedDescription)")
         }
     }
 }
