@@ -24,7 +24,7 @@ final class SettingsWindowController {
         window.title = "FallbackWiFi Settings"
         window.styleMask = [.titled, .closable]
         window.isReleasedWhenClosed = false
-        window.setContentSize(NSSize(width: 460, height: 430))
+        window.setContentSize(NSSize(width: 500, height: 540))
         window.center()
         self.window = window
 
@@ -36,6 +36,9 @@ final class SettingsWindowController {
 struct SettingsView: View {
     @ObservedObject var settings: AppSettings
     @ObservedObject var switcher: WiFiSwitcher
+    @State private var hotspotPassword = ""
+    @State private var passwordIsSaved = false
+    @State private var passwordMessage: String?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
@@ -64,6 +67,38 @@ struct SettingsView: View {
                 Text("Runs one connection check now. If Internet is down and auto-switch is enabled, it can switch to the backup Wi-Fi.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+
+                VStack(alignment: .leading, spacing: 8) {
+                    SecureField("Hotspot password", text: $hotspotPassword)
+                        .textFieldStyle(.roundedBorder)
+                        .disabled(settings.backupSSID.isEmpty)
+
+                    HStack(spacing: 10) {
+                        Button(passwordIsSaved ? "Update password" : "Save password") {
+                            saveHotspotPassword()
+                        }
+                        .disabled(settings.backupSSID.isEmpty || hotspotPassword.isEmpty)
+
+                        Button("Remove") {
+                            removeHotspotPassword()
+                        }
+                        .disabled(settings.backupSSID.isEmpty || !passwordIsSaved)
+
+                        Text(passwordIsSaved ? "Saved for \(settings.backupSSID)" : "Not saved")
+                            .font(.caption)
+                            .foregroundStyle(passwordIsSaved ? Color.secondary : Color.orange)
+                    }
+
+                    Text("Save it once here so automatic switches do not need to ask macOS for the Wi-Fi password each time.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+
+                    if let passwordMessage {
+                        Text(passwordMessage)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
             }
 
             Divider()
@@ -145,9 +180,37 @@ struct SettingsView: View {
             Spacer(minLength: 0)
         }
         .padding(22)
-        .frame(width: 460, height: 430, alignment: .topLeading)
+        .frame(width: 500, height: 540, alignment: .topLeading)
         .onAppear {
+            refreshPasswordState()
             Task { await switcher.refreshAvailableNetworks() }
         }
+        .onChange(of: settings.backupSSID) { _, _ in
+            hotspotPassword = ""
+            passwordMessage = nil
+            refreshPasswordState()
+        }
+    }
+
+    private func refreshPasswordState() {
+        passwordIsSaved = !settings.backupSSID.isEmpty && FallbackPasswordStore.hasPassword(for: settings.backupSSID)
+    }
+
+    private func saveHotspotPassword() {
+        do {
+            try FallbackPasswordStore.save(hotspotPassword, for: settings.backupSSID)
+            hotspotPassword = ""
+            passwordMessage = "Password saved in Keychain."
+            refreshPasswordState()
+        } catch {
+            passwordMessage = error.localizedDescription
+        }
+    }
+
+    private func removeHotspotPassword() {
+        FallbackPasswordStore.deletePassword(for: settings.backupSSID)
+        hotspotPassword = ""
+        passwordMessage = "Password removed."
+        refreshPasswordState()
     }
 }

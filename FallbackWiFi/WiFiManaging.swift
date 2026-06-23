@@ -43,7 +43,9 @@ struct SystemWiFiManager: WiFiManaging {
     }
 
     func connect(to ssid: String) async throws {
-        let password = await keychainPassword(for: ssid)
+        guard let password = await keychainPassword(for: ssid) else {
+            throw WiFiError.commandFailed("Save the password for \(ssid) in FallbackWiFi Settings before auto-switching.")
+        }
 
         do {
             try await connectWithCoreWLAN(to: ssid, password: password)
@@ -54,10 +56,7 @@ struct SystemWiFiManager: WiFiManaging {
         }
 
         let interface = try await wifiInterface()
-        var arguments = ["-setairportnetwork", interface, ssid]
-        if let password {
-            arguments.append(password)
-        }
+        let arguments = ["-setairportnetwork", interface, ssid, password]
 
         let result = await ShellCommand.run(networksetup, arguments)
         guard result.exitCode == 0 else {
@@ -111,13 +110,6 @@ struct SystemWiFiManager: WiFiManaging {
     }
 
     private func keychainPassword(for ssid: String) async -> String? {
-        let result = await ShellCommand.run(
-            "/usr/bin/security",
-            ["find-generic-password", "-D", "AirPort network password", "-a", ssid, "-w"]
-        )
-        guard result.exitCode == 0 else { return nil }
-
-        let password = result.standardOutput.trimmingCharacters(in: .whitespacesAndNewlines)
-        return password.isEmpty ? nil : password
+        FallbackPasswordStore.password(for: ssid)
     }
 }
