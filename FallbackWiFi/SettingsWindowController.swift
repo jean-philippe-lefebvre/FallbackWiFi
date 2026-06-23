@@ -56,10 +56,14 @@ struct SettingsView: View {
                         Task { await switcher.refreshAvailableNetworks() }
                     }
 
-                    Button("Test now") {
+                    Button("Check now") {
                         Task { await switcher.checkNow(allowSwitch: true) }
                     }
                 }
+
+                Text("Runs one connection check now. If Internet is down and auto-switch is enabled, it can switch to the backup Wi-Fi.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
 
             Divider()

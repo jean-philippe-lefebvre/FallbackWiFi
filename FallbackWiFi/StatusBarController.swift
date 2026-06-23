@@ -86,7 +86,7 @@ final class StatusBarController: NSObject {
             menu.addItem(loginAction)
         }
 
-        let testItem = NSMenuItem(title: "Test Now", action: #selector(testNow), keyEquivalent: "")
+        let testItem = NSMenuItem(title: "Check Connection Now", action: #selector(checkNow), keyEquivalent: "")
         testItem.target = self
         menu.addItem(testItem)
 
@@ -117,7 +117,7 @@ final class StatusBarController: NSObject {
         settings.launchAtLoginEnabled = true
     }
 
-    @objc private func testNow() {
+    @objc private func checkNow() {
         Task { await switcher.checkNow(allowSwitch: true) }
     }
 
