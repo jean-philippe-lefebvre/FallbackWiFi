@@ -2,6 +2,19 @@ import XCTest
 @testable import FallbackWiFi
 
 final class WiFiParsingTests: XCTestCase {
+    func testWiFiInterfaceParsesHardwarePortsOutput() {
+        let output = """
+        Hardware Port: Ethernet Adapter (en4)
+        Device: en4
+
+        Hardware Port: Wi-Fi
+        Device: en0
+        Ethernet Address: 60:3e:5f:49:2e:9e
+        """
+
+        XCTAssertEqual(WiFiParsing.wifiInterface(from: output), "en0")
+    }
+
     func testPreferredNetworksDropsHeaderAndTrimsNames() {
         let output = """
         Preferred networks on en0:

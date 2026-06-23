@@ -52,6 +52,28 @@ final class WiFiSwitcherTests: XCTestCase {
         XCTAssertNil(wifiManager.connectedSSID)
     }
 
+    func testFallbackStateStaysActiveWhenSSIDReadbackIsUnavailable() async {
+        let settings = makeSettings()
+        settings.backupSSID = "JP iPhone"
+        settings.autoSwitchEnabled = true
+        let wifiManager = FakeWiFiManager(currentNetwork: "Home WiFi")
+        let internetChecker = FakeInternetChecker(hasAccess: false)
+        let switcher = WiFiSwitcher(
+            settings: settings,
+            wifiManager: wifiManager,
+            internetChecker: internetChecker
+        )
+
+        await switcher.checkNow(allowSwitch: true)
+        wifiManager.currentNetworkValue = nil
+        wifiManager.connectedSSID = nil
+        internetChecker.hasAccess = true
+
+        await switcher.checkNow(allowSwitch: true)
+
+        XCTAssertEqual(switcher.state, .fallbackActive("JP iPhone"))
+    }
+
     private func makeSettings() -> AppSettings {
         let suiteName = "FallbackWiFiTests-\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suiteName)!
@@ -62,7 +84,7 @@ final class WiFiSwitcherTests: XCTestCase {
 
 private final class FakeWiFiManager: WiFiManaging, @unchecked Sendable {
     var connectedSSID: String?
-    private let currentNetworkValue: String?
+    var currentNetworkValue: String?
 
     init(currentNetwork: String?) {
         self.currentNetworkValue = currentNetwork
@@ -81,8 +103,12 @@ private final class FakeWiFiManager: WiFiManaging, @unchecked Sendable {
     }
 }
 
-private struct FakeInternetChecker: InternetChecking {
-    let hasAccess: Bool
+private final class FakeInternetChecker: InternetChecking, @unchecked Sendable {
+    var hasAccess: Bool
+
+    init(hasAccess: Bool) {
+        self.hasAccess = hasAccess
+    }
 
     func hasInternetAccess() async -> Bool {
         hasAccess

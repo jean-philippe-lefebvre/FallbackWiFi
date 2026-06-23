@@ -1,6 +1,28 @@
 import Foundation
 
 enum WiFiParsing {
+    static func wifiInterface(from hardwarePortsOutput: String) -> String? {
+        let lines = hardwarePortsOutput.split(whereSeparator: \.isNewline).map(String.init)
+
+        for index in lines.indices {
+            guard lines[index].trimmingCharacters(in: .whitespacesAndNewlines) == "Hardware Port: Wi-Fi" else {
+                continue
+            }
+
+            let deviceIndex = lines.index(after: index)
+            guard lines.indices.contains(deviceIndex) else { return nil }
+
+            let deviceLine = lines[deviceIndex].trimmingCharacters(in: .whitespacesAndNewlines)
+            let prefix = "Device:"
+            guard deviceLine.hasPrefix(prefix) else { return nil }
+
+            let device = deviceLine.dropFirst(prefix.count).trimmingCharacters(in: .whitespacesAndNewlines)
+            return device.isEmpty ? nil : device
+        }
+
+        return nil
+    }
+
     static func preferredNetworks(from output: String) -> [String] {
         output
             .split(whereSeparator: \.isNewline)

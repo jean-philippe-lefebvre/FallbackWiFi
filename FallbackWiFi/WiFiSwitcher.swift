@@ -49,6 +49,7 @@ final class WiFiSwitcher: ObservableObject {
     private let internetChecker: InternetChecking
     private var timer: Timer?
     private var isChecking = false
+    private var lastConnectedFallbackSSID: String?
 
     init(settings: AppSettings, wifiManager: WiFiManaging, internetChecker: InternetChecking) {
         self.settings = settings
@@ -102,12 +103,20 @@ final class WiFiSwitcher: ObservableObject {
             currentSSID = ssid
 
             if ssid == backupSSID {
+                lastConnectedFallbackSSID = backupSSID
                 state = .fallbackActive(backupSSID)
                 return
             }
 
             let hasInternet = await internetChecker.hasInternetAccess()
             if hasInternet {
+                if ssid == nil, lastConnectedFallbackSSID == backupSSID {
+                    currentSSID = backupSSID
+                    state = .fallbackActive(backupSSID)
+                    return
+                }
+
+                lastConnectedFallbackSSID = nil
                 state = .primaryOnline(ssid)
                 return
             }
@@ -119,6 +128,7 @@ final class WiFiSwitcher: ObservableObject {
 
             state = .switching(backupSSID)
             try await wifiManager.connect(to: backupSSID)
+            lastConnectedFallbackSSID = backupSSID
             currentSSID = backupSSID
             state = .fallbackActive(backupSSID)
         } catch {

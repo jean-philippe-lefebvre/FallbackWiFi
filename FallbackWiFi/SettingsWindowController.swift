@@ -83,18 +83,34 @@ struct SettingsView: View {
                 Text("Fallback active color")
                     .font(.headline)
 
-                Picker("Fallback active color", selection: $settings.activeColor) {
+                HStack(spacing: 8) {
                     ForEach(AppSettings.ActiveColor.allCases) { color in
-                        HStack {
-                            Circle()
-                                .fill(Color(nsColor: color.nsColor))
-                                .frame(width: 10, height: 10)
-                            Text(color.title)
+                        Button {
+                            settings.activeColor = color
+                        } label: {
+                            HStack(spacing: 6) {
+                                Circle()
+                                    .fill(Color(nsColor: color.nsColor))
+                                    .frame(width: 10, height: 10)
+                                    .overlay(
+                                        Circle()
+                                            .stroke(settings.activeColor == color ? Color.white.opacity(0.9) : Color.clear, lineWidth: 1)
+                                    )
+
+                                Text(color.title)
+                                    .font(.system(size: 13, weight: .semibold))
+                            }
+                            .foregroundStyle(settings.activeColor == color ? .white : .primary)
+                            .padding(.horizontal, 12)
+                            .frame(height: 30)
+                            .background(
+                                RoundedRectangle(cornerRadius: 7)
+                                    .fill(settings.activeColor == color ? Color(nsColor: color.nsColor) : Color(nsColor: .controlBackgroundColor))
+                            )
                         }
-                        .tag(color)
+                        .buttonStyle(.plain)
                     }
                 }
-                .pickerStyle(.segmented)
 
                 Text("The menu bar icon stays monochrome during normal Wi-Fi use. This color appears only when the backup network is active.")
                     .font(.caption)
