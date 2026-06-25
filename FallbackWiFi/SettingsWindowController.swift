@@ -22,9 +22,10 @@ final class SettingsWindowController {
         let controller = NSHostingController(rootView: SettingsView(settings: settings, switcher: switcher))
         let window = NSWindow(contentViewController: controller)
         window.title = "FallbackWiFi Settings"
-        window.styleMask = [.titled, .closable]
+        window.styleMask = [.titled, .closable, .resizable]
         window.isReleasedWhenClosed = false
         window.setContentSize(NSSize(width: 500, height: 540))
+        window.minSize = NSSize(width: 500, height: 420)
         window.center()
         self.window = window
 
@@ -41,145 +42,134 @@ struct SettingsView: View {
     @State private var passwordMessage: String?
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 18) {
-            Text("FallbackWiFi")
-                .font(.title2.weight(.semibold))
+        ScrollView(.vertical) {
+            VStack(alignment: .leading, spacing: 18) {
+                Text("FallbackWiFi")
+                    .font(.title2.weight(.semibold))
 
-            VStack(alignment: .leading, spacing: 10) {
-                Picker("Backup Wi-Fi", selection: $settings.backupSSID) {
-                    Text("Select a backup").tag("")
-                    ForEach(switcher.availableNetworks, id: \.self) { network in
-                        Text(network).tag(network)
-                    }
-                }
-                .pickerStyle(.menu)
-
-                HStack {
-                    Button("Refresh networks") {
-                        Task { await switcher.refreshAvailableNetworks() }
-                    }
-
-                    Button("Check now") {
-                        Task { await switcher.checkNow(allowSwitch: true) }
-                    }
-                }
-
-                Text("Runs one connection check now. If Internet is down and auto-switch is enabled, it can switch to the backup Wi-Fi.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-
-                VStack(alignment: .leading, spacing: 8) {
-                    SecureField("Hotspot password", text: $hotspotPassword)
-                        .textFieldStyle(.roundedBorder)
-                        .disabled(settings.backupSSID.isEmpty)
-
-                    HStack(spacing: 10) {
-                        Button(passwordIsSaved ? "Update password" : "Save password") {
-                            saveHotspotPassword()
+                VStack(alignment: .leading, spacing: 10) {
+                    Picker("Backup Wi-Fi", selection: $settings.backupSSID) {
+                        Text("Select a backup").tag("")
+                        ForEach(switcher.availableNetworks, id: \.self) { network in
+                            Text(network).tag(network)
                         }
-                        .disabled(settings.backupSSID.isEmpty || hotspotPassword.isEmpty)
+                    }
+                    .pickerStyle(.menu)
 
-                        Button("Remove") {
-                            removeHotspotPassword()
+                    HStack {
+                        Button("Refresh networks") {
+                            Task { await switcher.refreshAvailableNetworks() }
                         }
-                        .disabled(settings.backupSSID.isEmpty || !passwordIsSaved)
 
-                        Text(passwordIsSaved ? "Saved for \(settings.backupSSID)" : "Not saved")
-                            .font(.caption)
-                            .foregroundStyle(passwordIsSaved ? Color.secondary : Color.orange)
+                        Button("Check now") {
+                            Task { await switcher.checkNow(allowSwitch: true) }
+                        }
                     }
 
-                    Text("Save it once here so automatic switches do not need to ask macOS for the Wi-Fi password each time.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                    helperText("Runs one connection check now. If Internet is down and auto-switch is enabled, it can switch to the backup Wi-Fi.")
 
-                    if let passwordMessage {
-                        Text(passwordMessage)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-            }
+                    VStack(alignment: .leading, spacing: 8) {
+                        SecureField("Hotspot password", text: $hotspotPassword)
+                            .textFieldStyle(.roundedBorder)
+                            .disabled(settings.backupSSID.isEmpty)
 
-            Divider()
-
-            VStack(alignment: .leading, spacing: 10) {
-                Toggle("Launch at login", isOn: $settings.launchAtLoginEnabled)
-
-                Toggle("Auto-switch when connection fails", isOn: $settings.autoSwitchEnabled)
-
-                Picker("Check interval", selection: $settings.checkInterval) {
-                    ForEach(AppSettings.checkIntervalOptions, id: \.value) { option in
-                        Text(option.label).tag(option.value)
-                    }
-                }
-                .pickerStyle(.segmented)
-            }
-
-            Divider()
-
-            VStack(alignment: .leading, spacing: 10) {
-                Text("Fallback active color")
-                    .font(.headline)
-
-                HStack(spacing: 8) {
-                    ForEach(AppSettings.ActiveColor.allCases) { color in
-                        Button {
-                            settings.activeColor = color
-                        } label: {
-                            HStack(spacing: 6) {
-                                Circle()
-                                    .fill(Color(nsColor: color.nsColor))
-                                    .frame(width: 10, height: 10)
-                                    .overlay(
-                                        Circle()
-                                            .stroke(settings.activeColor == color ? Color.white.opacity(0.9) : Color.clear, lineWidth: 1)
-                                    )
-
-                                Text(color.title)
-                                    .font(.system(size: 13, weight: .semibold))
+                        HStack(spacing: 10) {
+                            Button(passwordIsSaved ? "Update password" : "Save password") {
+                                saveHotspotPassword()
                             }
-                            .foregroundStyle(settings.activeColor == color ? .white : .primary)
-                            .padding(.horizontal, 12)
-                            .frame(height: 30)
-                            .background(
-                                RoundedRectangle(cornerRadius: 7)
-                                    .fill(settings.activeColor == color ? Color(nsColor: color.nsColor) : Color(nsColor: .controlBackgroundColor))
-                            )
+                            .disabled(settings.backupSSID.isEmpty || hotspotPassword.isEmpty)
+
+                            Button("Remove") {
+                                removeHotspotPassword()
+                            }
+                            .disabled(settings.backupSSID.isEmpty || !passwordIsSaved)
+
+                            Text(passwordIsSaved ? "Saved for \(settings.backupSSID)" : "Not saved")
+                                .font(.caption)
+                                .foregroundStyle(passwordIsSaved ? Color.secondary : Color.orange)
+                                .lineLimit(1)
                         }
-                        .buttonStyle(.plain)
+
+                        helperText("Save it once here so automatic switches do not need to ask macOS for the Wi-Fi password each time.")
+
+                        if let passwordMessage {
+                            helperText(passwordMessage)
+                        }
                     }
                 }
 
-                Text("The menu bar icon stays monochrome during normal Wi-Fi use. This color appears only when the backup network is active.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
+                Divider()
 
-            Divider()
+                VStack(alignment: .leading, spacing: 10) {
+                    Toggle("Launch at login", isOn: $settings.launchAtLoginEnabled)
 
-            VStack(alignment: .leading, spacing: 6) {
-                LabeledContent("Status") {
-                    Text(switcher.state.title)
-                        .foregroundStyle(switcher.state.isFallbackActive ? Color(nsColor: settings.activeColor.nsColor) : .secondary)
+                    Toggle("Auto-switch when connection fails", isOn: $settings.autoSwitchEnabled)
+
+                    Picker("Check interval", selection: $settings.checkInterval) {
+                        ForEach(AppSettings.checkIntervalOptions, id: \.value) { option in
+                            Text(option.label).tag(option.value)
+                        }
+                    }
+                    .pickerStyle(.segmented)
                 }
 
-                LabeledContent("Current") {
-                    Text(switcher.currentSSID ?? "None")
-                        .foregroundStyle(.secondary)
+                Divider()
+
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("Fallback active color")
+                        .font(.headline)
+
+                    HStack(spacing: 8) {
+                        ForEach(AppSettings.ActiveColor.allCases) { color in
+                            Button {
+                                settings.activeColor = color
+                            } label: {
+                                HStack(spacing: 6) {
+                                    Circle()
+                                        .fill(Color(nsColor: color.nsColor))
+                                        .frame(width: 10, height: 10)
+                                        .overlay(
+                                            Circle()
+                                                .stroke(settings.activeColor == color ? Color.white.opacity(0.9) : Color.clear, lineWidth: 1)
+                                        )
+
+                                    Text(color.title)
+                                        .font(.system(size: 13, weight: .semibold))
+                                }
+                                .foregroundStyle(settings.activeColor == color ? .white : .primary)
+                                .padding(.horizontal, 12)
+                                .frame(height: 30)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 7)
+                                        .fill(settings.activeColor == color ? Color(nsColor: color.nsColor) : Color(nsColor: .controlBackgroundColor))
+                                )
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+
+                    helperText("The menu bar icon stays monochrome during normal Wi-Fi use. This color appears only when the backup network is active.")
                 }
 
-                if let lastCheckedAt = switcher.lastCheckedAt {
-                    LabeledContent("Last check") {
-                        Text(lastCheckedAt, style: .time)
-                            .foregroundStyle(.secondary)
+                Divider()
+
+                VStack(alignment: .leading, spacing: 6) {
+                    statusRow("Status", value: switcher.state.title, color: switcher.state.isFallbackActive ? Color(nsColor: settings.activeColor.nsColor) : .secondary)
+                    statusRow("Current", value: switcher.currentSSID ?? "None", color: .secondary)
+
+                    if let lastCheckedAt = switcher.lastCheckedAt {
+                        HStack(alignment: .firstTextBaseline) {
+                            Text("Last check")
+                                .frame(width: 72, alignment: .leading)
+                            Text(lastCheckedAt, style: .time)
+                                .foregroundStyle(.secondary)
+                        }
                     }
                 }
             }
-
-            Spacer(minLength: 0)
+            .padding(22)
+            .frame(maxWidth: .infinity, alignment: .topLeading)
         }
-        .padding(22)
         .frame(width: 500, height: 540, alignment: .topLeading)
         .onAppear {
             refreshPasswordState()
@@ -189,6 +179,23 @@ struct SettingsView: View {
             hotspotPassword = ""
             passwordMessage = nil
             refreshPasswordState()
+        }
+    }
+
+    private func helperText(_ value: String) -> some View {
+        Text(value)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+    }
+
+    private func statusRow(_ label: String, value: String, color: Color) -> some View {
+        HStack(alignment: .firstTextBaseline) {
+            Text(label)
+                .frame(width: 72, alignment: .leading)
+            Text(value)
+                .foregroundStyle(color)
+                .fixedSize(horizontal: false, vertical: true)
         }
     }
 
