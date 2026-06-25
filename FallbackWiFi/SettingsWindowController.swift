@@ -353,15 +353,22 @@ struct SettingsView: View {
                 colorSwatches(for: ssid)
             }
 
-            SecureField("Wi-Fi password", text: $hotspotPassword)
+            SecureField(passwordIsSaved ? "Password already saved" : "Wi-Fi password", text: $hotspotPassword)
                 .textFieldStyle(.roundedBorder)
                 .controlSize(.large)
+                .disabled(passwordIsSaved)
+                .opacity(passwordIsSaved ? 0.65 : 1)
+
+            Text(passwordHelpText)
+                .font(.caption)
+                .foregroundStyle(passwordIsSaved ? Color.secondary : Color.orange)
+                .fixedSize(horizontal: false, vertical: true)
 
             HStack(spacing: 12) {
-                Button(passwordIsSaved ? "Update password" : "Save password") {
+                Button("Save password") {
                     saveHotspotPassword()
                 }
-                .disabled(hotspotPassword.isEmpty)
+                .disabled(passwordIsSaved || hotspotPassword.isEmpty)
                 .controlSize(.large)
                 .frame(minHeight: 40)
 
@@ -375,7 +382,7 @@ struct SettingsView: View {
                 Text(passwordMessage ?? (passwordIsSaved ? "Password saved" : "No saved password"))
                     .font(.caption)
                     .foregroundStyle(passwordIsSaved ? Color.secondary : Color.orange)
-                    .lineLimit(1)
+                    .lineLimit(2)
             }
         }
     }
@@ -439,6 +446,14 @@ struct SettingsView: View {
                     .lineLimit(2)
             }
         }
+    }
+
+    private var passwordHelpText: String {
+        if passwordIsSaved {
+            return "Password saved for this backup. Remove it first before saving a different password."
+        }
+
+        return "Enter the Wi-Fi password once so automatic switches can join without asking macOS."
     }
 
     private var statusColor: Color {
