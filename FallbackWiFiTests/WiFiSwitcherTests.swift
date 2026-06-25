@@ -83,6 +83,27 @@ final class WiFiSwitcherTests: XCTestCase {
         XCTAssertEqual(switcher.state, .fallbackActive("Office Hotspot"))
     }
 
+    func testPersonalHotspotBackupIsTriedWhenCoreWLANScanOmitsIt() async {
+        let settings = makeSettings()
+        settings.backupSSIDs = ["iPhone de Jean-philippe"]
+        settings.autoSwitchEnabled = true
+        let wifiManager = FakeWiFiManager(currentNetwork: nil)
+        wifiManager.visibleNetworkValues = []
+        let internetChecker = FakeInternetChecker(hasAccess: false)
+        wifiManager.onConnect = { _ in internetChecker.hasAccess = true }
+        let switcher = WiFiSwitcher(
+            settings: settings,
+            wifiManager: wifiManager,
+            internetChecker: internetChecker,
+            postJoinValidationDelayNanoseconds: 0
+        )
+
+        await switcher.checkNow(allowSwitch: true)
+
+        XCTAssertEqual(wifiManager.connectionAttempts, ["iPhone de Jean-philippe"])
+        XCTAssertEqual(switcher.state, .fallbackActive("iPhone de Jean-philippe"))
+    }
+
     func testCurrentBackupNetworkIsReportedAsFallbackActive() async {
         let settings = makeSettings()
         settings.backupSSID = "JP iPhone"

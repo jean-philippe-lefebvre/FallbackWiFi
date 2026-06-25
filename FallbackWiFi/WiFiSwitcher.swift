@@ -224,7 +224,9 @@ final class WiFiSwitcher: ObservableObject {
 
         do {
             let visibleNetworks = Set(try await wifiManager.visibleNetworks())
-            let nearby = candidates.filter { visibleNetworks.contains($0) }
+            let nearby = candidates.filter { candidate in
+                visibleNetworks.contains(candidate) || isPersonalHotspotCandidate(candidate)
+            }
 
             if nearby.isEmpty {
                 NSLog("FallbackWiFi no backup Wi-Fi is nearby. candidates=\(candidates.joined(separator: ", "))")
@@ -233,11 +235,21 @@ final class WiFiSwitcher: ObservableObject {
                 NSLog("FallbackWiFi skipping non-nearby backups: \(skipped.joined(separator: ", "))")
             }
 
+            let retainedHotspots = nearby.filter { !visibleNetworks.contains($0) && isPersonalHotspotCandidate($0) }
+            if !retainedHotspots.isEmpty {
+                NSLog("FallbackWiFi keeping hotspot candidates hidden from CoreWLAN scan: \(retainedHotspots.joined(separator: ", "))")
+            }
+
             return nearby
         } catch {
             NSLog("FallbackWiFi visible network scan failed, keeping backup candidates: \(error.localizedDescription)")
             return candidates
         }
+    }
+
+    private func isPersonalHotspotCandidate(_ ssid: String) -> Bool {
+        let lowercased = ssid.localizedLowercase
+        return lowercased.contains("iphone") || lowercased.contains("ipad")
     }
 
     private func switchToFirstWorkingBackup(_ candidates: [String]) async throws {
