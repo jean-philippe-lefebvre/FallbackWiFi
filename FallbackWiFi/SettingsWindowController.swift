@@ -59,6 +59,7 @@ struct SettingsView: View {
     @State private var hotspotPassword = ""
     @State private var passwordIsSaved = false
     @State private var passwordMessage: String?
+    @State private var isTestingQuality = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -290,15 +291,13 @@ struct SettingsView: View {
                 sectionTitle("Manual test")
                 HStack(spacing: 12) {
                     Button("Test current quality") {
-                        Task { await switcher.measureCurrentQuality() }
+                        runManualQualityTest()
                     }
+                    .disabled(isTestingQuality)
                     .controlSize(.large)
                     .frame(minHeight: 40)
 
-                    Text(switcher.lastQuality?.summary ?? "Not tested")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .monospacedDigit()
+                    qualityTestStatus
                 }
             }
 
@@ -490,6 +489,37 @@ struct SettingsView: View {
 
     private func latencyTag(for value: Double) -> String {
         String(Int(value.rounded()))
+    }
+
+    @ViewBuilder
+    private var qualityTestStatus: some View {
+        if isTestingQuality {
+            HStack(spacing: 8) {
+                ProgressView()
+                    .controlSize(.small)
+                    .frame(width: 16, height: 16)
+                Text("Testing...")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            .frame(minHeight: 24)
+        } else {
+            Text(switcher.lastQuality?.summary ?? "Not tested")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .monospacedDigit()
+                .lineLimit(2)
+        }
+    }
+
+    private func runManualQualityTest() {
+        guard !isTestingQuality else { return }
+        isTestingQuality = true
+
+        Task {
+            await switcher.measureCurrentQuality()
+            isTestingQuality = false
+        }
     }
 
     private var passwordHelpText: String {
