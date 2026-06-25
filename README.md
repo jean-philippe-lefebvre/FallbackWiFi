@@ -5,6 +5,7 @@ Tiny macOS menu bar app that switches to a selected backup Wi-Fi when the curren
 ## MVP
 
 - Manage a prioritized list of backup Wi-Fi networks.
+- Skip backup Wi-Fi networks that are not visible nearby before attempting to join.
 - Save the backup Wi-Fi password once in the app's Keychain item.
 - Assign a distinct menu bar active color to each backup Wi-Fi.
 - Optionally switch when ping/download quality falls below configured thresholds.

@@ -3,6 +3,7 @@ import Foundation
 
 protocol WiFiManaging: Sendable {
     func preferredNetworks() async throws -> [String]
+    func visibleNetworks() async throws -> [String]
     func currentNetwork() async throws -> String?
     func connect(to ssid: String) async throws
     func isLikelyPersonalHotspotConnection() async -> Bool
@@ -30,8 +31,23 @@ struct SystemWiFiManager: WiFiManaging {
         }
 
         let preferred = WiFiParsing.preferredNetworks(from: result.standardOutput)
-        let visible = await visibleNetworks()
+        let visible = (try? await visibleNetworks()) ?? []
         return Array(Set(preferred + visible)).sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
+    }
+
+    func visibleNetworks() async throws -> [String] {
+        try await Task.detached {
+            guard let interface = CWWiFiClient.shared().interface() else {
+                throw WiFiError.commandFailed("CoreWLAN interface not found")
+            }
+
+            let networks = try interface.scanForNetworks(withName: nil)
+            return Array(Set(networks.compactMap { network in
+                network.ssid?.trimmingCharacters(in: .whitespacesAndNewlines)
+            }
+            .filter { !$0.isEmpty }))
+            .sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
+        }.value
     }
 
     func currentNetwork() async throws -> String? {
@@ -86,22 +102,6 @@ struct SystemWiFiManager: WiFiManaging {
         }
 
         throw WiFiError.commandFailed("Wi-Fi interface not found")
-    }
-
-    private func visibleNetworks() async -> [String] {
-        await Task.detached {
-            guard let interface = CWWiFiClient.shared().interface() else { return [] }
-
-            do {
-                let networks = try interface.scanForNetworks(withName: nil)
-                return networks.compactMap { network in
-                    network.ssid?.trimmingCharacters(in: .whitespacesAndNewlines)
-                }
-                .filter { !$0.isEmpty }
-            } catch {
-                return []
-            }
-        }.value
     }
 
     private func connectWithCoreWLAN(to ssid: String, password: String?) async throws {

@@ -46,6 +46,7 @@ final class WiFiSwitcherTests: XCTestCase {
         settings.autoSwitchEnabled = true
         let wifiManager = FakeWiFiManager(currentNetwork: "Home WiFi")
         wifiManager.failedSSIDs = ["JP iPhone"]
+        wifiManager.visibleNetworkValues = ["JP iPhone", "Office Hotspot"]
         let internetChecker = FakeInternetChecker(hasAccess: false)
         wifiManager.onConnect = { _ in internetChecker.hasAccess = true }
         let switcher = WiFiSwitcher(
@@ -58,6 +59,27 @@ final class WiFiSwitcherTests: XCTestCase {
         await switcher.checkNow(allowSwitch: true)
 
         XCTAssertEqual(wifiManager.connectionAttempts, ["JP iPhone", "Office Hotspot"])
+        XCTAssertEqual(switcher.state, .fallbackActive("Office Hotspot"))
+    }
+
+    func testNonNearbyBackupIsSkippedBeforeConnectionAttempt() async {
+        let settings = makeSettings()
+        settings.backupSSIDs = ["Far Hotspot", "Office Hotspot"]
+        settings.autoSwitchEnabled = true
+        let wifiManager = FakeWiFiManager(currentNetwork: "Home WiFi")
+        wifiManager.visibleNetworkValues = ["Office Hotspot"]
+        let internetChecker = FakeInternetChecker(hasAccess: false)
+        wifiManager.onConnect = { _ in internetChecker.hasAccess = true }
+        let switcher = WiFiSwitcher(
+            settings: settings,
+            wifiManager: wifiManager,
+            internetChecker: internetChecker,
+            postJoinValidationDelayNanoseconds: 0
+        )
+
+        await switcher.checkNow(allowSwitch: true)
+
+        XCTAssertEqual(wifiManager.connectionAttempts, ["Office Hotspot"])
         XCTAssertEqual(switcher.state, .fallbackActive("Office Hotspot"))
     }
 
@@ -156,6 +178,7 @@ private final class FakeWiFiManager: WiFiManaging, @unchecked Sendable {
     var connectedSSID: String?
     var connectionAttempts: [String] = []
     var currentNetworkValue: String?
+    var visibleNetworkValues = ["Home WiFi", "JP iPhone"]
     var failedSSIDs = Set<String>()
     var likelyPersonalHotspot = false
     var onConnect: ((String) -> Void)?
@@ -166,6 +189,10 @@ private final class FakeWiFiManager: WiFiManaging, @unchecked Sendable {
 
     func preferredNetworks() async throws -> [String] {
         ["Home WiFi", "JP iPhone"]
+    }
+
+    func visibleNetworks() async throws -> [String] {
+        visibleNetworkValues
     }
 
     func currentNetwork() async throws -> String? {

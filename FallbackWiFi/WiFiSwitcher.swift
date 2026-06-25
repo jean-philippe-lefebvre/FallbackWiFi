@@ -163,7 +163,7 @@ final class WiFiSwitcher: ObservableObject {
                 return
             }
 
-            let candidates = switchCandidates(from: backups, currentSSID: ssid)
+            let candidates = await nearbySwitchCandidates(from: switchCandidates(from: backups, currentSSID: ssid))
             try await switchToFirstWorkingBackup(candidates)
         } catch {
             state = .error(error.localizedDescription)
@@ -212,7 +212,32 @@ final class WiFiSwitcher: ObservableObject {
         return laterBackups.isEmpty ? backups.filter { $0 != currentSSID } : Array(laterBackups)
     }
 
+    private func nearbySwitchCandidates(from candidates: [String]) async -> [String] {
+        guard !candidates.isEmpty else { return [] }
+
+        do {
+            let visibleNetworks = Set(try await wifiManager.visibleNetworks())
+            let nearby = candidates.filter { visibleNetworks.contains($0) }
+
+            if nearby.isEmpty {
+                NSLog("FallbackWiFi no backup Wi-Fi is nearby. candidates=\(candidates.joined(separator: ", "))")
+            } else if nearby != candidates {
+                let skipped = candidates.filter { !nearby.contains($0) }
+                NSLog("FallbackWiFi skipping non-nearby backups: \(skipped.joined(separator: ", "))")
+            }
+
+            return nearby
+        } catch {
+            NSLog("FallbackWiFi visible network scan failed, keeping backup candidates: \(error.localizedDescription)")
+            return candidates
+        }
+    }
+
     private func switchToFirstWorkingBackup(_ candidates: [String]) async throws {
+        guard !candidates.isEmpty else {
+            throw WiFiError.commandFailed("No backup Wi-Fi is nearby")
+        }
+
         var lastError: Error?
 
         for candidate in candidates {
