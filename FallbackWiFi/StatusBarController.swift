@@ -57,43 +57,20 @@ final class StatusBarController: NSObject {
     private func showContextMenu() {
         let menu = NSMenu()
 
-        let statusItem = NSMenuItem(title: switcher.state.title, action: nil, keyEquivalent: "")
+        let statusItem = NSMenuItem(title: shortMenuTitle(switcher.state.title), action: nil, keyEquivalent: "")
         statusItem.isEnabled = false
         menu.addItem(statusItem)
 
-        let currentTitle = switcher.currentSSID.map { "Current: \($0)" } ?? "Current: none"
+        let currentTitle = switcher.currentSSID.map { "Current: \(shortNetworkName($0))" } ?? "Current: none"
         let currentItem = NSMenuItem(title: currentTitle, action: nil, keyEquivalent: "")
         currentItem.isEnabled = false
         menu.addItem(currentItem)
 
-        let backupTitle = settings.backupSSIDs.isEmpty
-            ? "Backups: not selected"
-            : "Backups: \(settings.backupSSIDs.count) configured"
-        let backupItem = NSMenuItem(title: backupTitle, action: nil, keyEquivalent: "")
-        backupItem.isEnabled = false
-        menu.addItem(backupItem)
-
-        for (index, ssid) in settings.backupSSIDs.prefix(3).enumerated() {
-            let item = NSMenuItem(title: "\(index + 1). \(ssid)", action: nil, keyEquivalent: "")
-            item.isEnabled = false
-            menu.addItem(item)
-        }
-
-        if settings.backupSSIDs.count > 3 {
-            let moreItem = NSMenuItem(title: "+ \(settings.backupSSIDs.count - 3) more", action: nil, keyEquivalent: "")
-            moreItem.isEnabled = false
-            menu.addItem(moreItem)
-        }
-
         if let quality = switcher.lastQuality {
-            let qualityItem = NSMenuItem(title: "Quality: \(quality.summary)", action: nil, keyEquivalent: "")
+            let qualityItem = NSMenuItem(title: shortMenuTitle("Quality: \(quality.summary)"), action: nil, keyEquivalent: "")
             qualityItem.isEnabled = false
             menu.addItem(qualityItem)
         }
-
-        let loginItem = NSMenuItem(title: LoginItemManager.statusTitle, action: nil, keyEquivalent: "")
-        loginItem.isEnabled = false
-        menu.addItem(loginItem)
 
         menu.addItem(.separator())
 
@@ -114,10 +91,6 @@ final class StatusBarController: NSObject {
         let testItem = NSMenuItem(title: "Check Connection Now", action: #selector(checkNow), keyEquivalent: "")
         testItem.target = self
         menu.addItem(testItem)
-
-        let refreshNetworksItem = NSMenuItem(title: "Refresh Wi-Fi List", action: #selector(refreshNetworks), keyEquivalent: "")
-        refreshNetworksItem.target = self
-        menu.addItem(refreshNetworksItem)
 
         let settingsItem = NSMenuItem(title: "Settings...", action: #selector(settingsAction), keyEquivalent: ",")
         settingsItem.target = self
@@ -146,10 +119,6 @@ final class StatusBarController: NSObject {
         Task { await switcher.checkNow(allowSwitch: true) }
     }
 
-    @objc private func refreshNetworks() {
-        Task { await switcher.refreshAvailableNetworks() }
-    }
-
     @objc private func settingsAction() {
         settingsWindowController.show()
     }
@@ -173,5 +142,15 @@ final class StatusBarController: NSObject {
         }
 
         return settings.activeColor.nsColor
+    }
+
+    private func shortMenuTitle(_ title: String) -> String {
+        if title.count <= 30 { return title }
+        return String(title.prefix(27)) + "..."
+    }
+
+    private func shortNetworkName(_ name: String) -> String {
+        if name.count <= 18 { return name }
+        return String(name.prefix(15)) + "..."
     }
 }

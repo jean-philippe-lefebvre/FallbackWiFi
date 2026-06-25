@@ -24,8 +24,8 @@ final class SettingsWindowController {
         window.title = "FallbackWiFi Settings"
         window.styleMask = [.titled, .closable, .resizable]
         window.isReleasedWhenClosed = false
-        window.setContentSize(NSSize(width: 560, height: 620))
-        window.minSize = NSSize(width: 540, height: 460)
+        window.setContentSize(NSSize(width: 560, height: 500))
+        window.minSize = NSSize(width: 520, height: 420)
         window.center()
         self.window = window
 
@@ -38,119 +38,93 @@ struct SettingsView: View {
     @ObservedObject var settings: AppSettings
     @ObservedObject var switcher: WiFiSwitcher
     @State private var selectedNetworkToAdd = ""
-    @State private var passwordSSID = ""
+    @State private var selectedBackupSSID = ""
     @State private var hotspotPassword = ""
     @State private var passwordIsSaved = false
     @State private var passwordMessage: String?
 
     var body: some View {
-        ScrollView(.vertical) {
-            VStack(alignment: .leading, spacing: 18) {
-                Text("FallbackWiFi")
-                    .font(.title2.weight(.semibold))
+        TabView {
+            generalTab
+                .tabItem { Label("General", systemImage: "gearshape") }
 
-                backupsSection
+            backupsTab
+                .tabItem { Label("Backups", systemImage: "wifi") }
 
-                Divider()
-
-                VStack(alignment: .leading, spacing: 10) {
-                    Toggle("Launch at login", isOn: $settings.launchAtLoginEnabled)
-
-                    Toggle("Auto-switch when connection fails", isOn: $settings.autoSwitchEnabled)
-
-                    Picker("Check interval", selection: $settings.checkInterval) {
-                        ForEach(AppSettings.checkIntervalOptions, id: \.value) { option in
-                            Text(option.label).tag(option.value)
-                        }
-                    }
-                    .pickerStyle(.segmented)
-                }
-
-                Divider()
-
-                qualitySection
-
-                Divider()
-
-                VStack(alignment: .leading, spacing: 10) {
-                    Text("Default backup color")
-                        .font(.headline)
-
-                    HStack(spacing: 8) {
-                        ForEach(AppSettings.ActiveColor.allCases) { color in
-                            Button {
-                                settings.activeColor = color
-                            } label: {
-                                HStack(spacing: 6) {
-                                    Circle()
-                                        .fill(Color(nsColor: color.nsColor))
-                                        .frame(width: 10, height: 10)
-                                        .overlay(
-                                            Circle()
-                                                .stroke(settings.activeColor == color ? Color.white.opacity(0.9) : Color.clear, lineWidth: 1)
-                                        )
-
-                                    Text(color.title)
-                                        .font(.system(size: 13, weight: .semibold))
-                                }
-                                .foregroundStyle(settings.activeColor == color ? .white : .primary)
-                                .padding(.horizontal, 12)
-                                .frame(height: 30)
-                                .background(
-                                    RoundedRectangle(cornerRadius: 7)
-                                        .fill(settings.activeColor == color ? Color(nsColor: color.nsColor) : Color(nsColor: .controlBackgroundColor))
-                                )
-                            }
-                            .buttonStyle(.plain)
-                        }
-                    }
-
-                    helperText("New backups use this color by default. Existing backups can be changed directly in the priority list.")
-                }
-
-                Divider()
-
-                VStack(alignment: .leading, spacing: 6) {
-                    statusRow("Status", value: switcher.state.title, color: statusColor)
-                    statusRow("Current", value: switcher.currentSSID ?? "None", color: .secondary)
-                    statusRow("Quality", value: switcher.lastQuality?.summary ?? "Not tested", color: .secondary)
-
-                    if let lastCheckedAt = switcher.lastCheckedAt {
-                        HStack(alignment: .firstTextBaseline) {
-                            Text("Last check")
-                                .frame(width: 72, alignment: .leading)
-                            Text(lastCheckedAt, style: .time)
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-                }
-            }
-            .padding(22)
-            .frame(maxWidth: .infinity, alignment: .topLeading)
+            qualityTab
+                .tabItem { Label("Quality", systemImage: "speedometer") }
         }
-        .frame(width: 560, height: 620, alignment: .topLeading)
+        .padding(20)
+        .frame(width: 560, height: 500)
         .onAppear {
             syncSelectionState()
             refreshPasswordState()
             Task { await switcher.refreshAvailableNetworks() }
         }
+        .onChange(of: switcher.availableNetworks) { _, _ in syncSelectionState() }
         .onChange(of: settings.backupSSIDs) { _, _ in
             syncSelectionState()
-            hotspotPassword = ""
-            passwordMessage = nil
-            refreshPasswordState()
+            resetPasswordEditor()
         }
-        .onChange(of: passwordSSID) { _, _ in
-            hotspotPassword = ""
-            passwordMessage = nil
-            refreshPasswordState()
-        }
+        .onChange(of: selectedBackupSSID) { _, _ in resetPasswordEditor() }
     }
 
-    private var backupsSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("Backup priority")
-                .font(.headline)
+    private var generalTab: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            header("FallbackWiFi", subtitle: "Automatic Wi-Fi fallback from the menu bar.")
+
+            VStack(alignment: .leading, spacing: 8) {
+                sectionTitle("Status")
+                statusRow("State", value: switcher.state.title, color: statusColor)
+                statusRow("Current", value: switcher.currentSSID ?? "None", color: .secondary)
+                statusRow("Backups", value: "\(settings.backupSSIDs.count)", color: .secondary)
+
+                if let lastCheckedAt = switcher.lastCheckedAt {
+                    HStack(alignment: .firstTextBaseline) {
+                        Text("Last check")
+                            .frame(width: 82, alignment: .leading)
+                        Text(lastCheckedAt, style: .time)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
+
+            Divider()
+
+            VStack(alignment: .leading, spacing: 12) {
+                sectionTitle("Automation")
+                Toggle("Launch at login", isOn: $settings.launchAtLoginEnabled)
+                Toggle("Auto-switch when connection fails", isOn: $settings.autoSwitchEnabled)
+
+                Picker("Check interval", selection: $settings.checkInterval) {
+                    ForEach(AppSettings.checkIntervalOptions, id: \.value) { option in
+                        Text(option.label).tag(option.value)
+                    }
+                }
+                .pickerStyle(.segmented)
+            }
+
+            Spacer()
+
+            HStack {
+                Button("Check now") {
+                    Task { await switcher.checkNow(allowSwitch: true) }
+                }
+                .keyboardShortcut("r", modifiers: [.command])
+
+                Button("Refresh networks") {
+                    Task { await switcher.refreshAvailableNetworks() }
+                }
+
+                Spacer()
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    }
+
+    private var backupsTab: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            header("Backups", subtitle: "Priority is applied only to Wi-Fi networks visible nearby.")
 
             HStack {
                 Picker("Add Wi-Fi", selection: $selectedNetworkToAdd) {
@@ -166,104 +140,210 @@ struct SettingsView: View {
                 }
                 .disabled(selectedNetworkToAdd.isEmpty)
 
-                Button("Refresh") {
-                    Task { await switcher.refreshAvailableNetworks() }
-                }
+                Spacer()
             }
 
             if settings.backupSSIDs.isEmpty {
-                helperText("Add at least one backup Wi-Fi. FallbackWiFi tries them from top to bottom.")
+                emptyState("No backup Wi-Fi configured.")
             } else {
-                VStack(alignment: .leading, spacing: 6) {
-                    ForEach(Array(settings.backupSSIDs.enumerated()), id: \.element) { index, ssid in
-                        backupRow(index: index, ssid: ssid)
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 4) {
+                        ForEach(Array(settings.backupSSIDs.enumerated()), id: \.element) { index, ssid in
+                            backupListRow(index: index, ssid: ssid)
+                        }
                     }
                 }
+                .frame(minHeight: 92, maxHeight: 150)
             }
 
-            helperText("When a switch is needed, the app tries backup 1 first, then backup 2, and continues until one has Internet.")
+            Divider()
 
-            VStack(alignment: .leading, spacing: 8) {
-                Picker("Password for", selection: $passwordSSID) {
-                    Text("Select a backup").tag("")
-                    ForEach(settings.backupSSIDs, id: \.self) { ssid in
-                        Text(ssid).tag(ssid)
-                    }
-                }
-                .pickerStyle(.menu)
-
-                SecureField("Hotspot password", text: $hotspotPassword)
-                    .textFieldStyle(.roundedBorder)
-                    .disabled(passwordSSID.isEmpty)
-
-                HStack(spacing: 10) {
-                    Button(passwordIsSaved ? "Update password" : "Save password") {
-                        saveHotspotPassword()
-                    }
-                    .disabled(passwordSSID.isEmpty || hotspotPassword.isEmpty)
-
-                    Button("Remove password") {
-                        removeHotspotPassword()
-                    }
-                    .disabled(passwordSSID.isEmpty || !passwordIsSaved)
-
-                    Text(passwordStatusTitle)
-                        .font(.caption)
-                        .foregroundStyle(passwordIsSaved ? Color.secondary : Color.orange)
-                        .lineLimit(1)
-                }
-
-                helperText("Save each secured backup once so automatic switches do not need to ask macOS for the Wi-Fi password.")
-
-                if let passwordMessage {
-                    helperText(passwordMessage)
-                }
+            if let selectedBackup {
+                backupDetail(selectedBackup)
+            } else {
+                emptyState("Select a backup to edit its password, color, or priority.")
             }
+
+            Spacer()
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
 
-    private var qualitySection: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("Connection quality")
-                .font(.headline)
+    private var qualityTab: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            header("Connection Quality", subtitle: "Optional quality checks can trigger fallback before a full outage.")
 
             Toggle("Switch when connection quality is poor", isOn: $settings.qualitySwitchEnabled)
 
-            Picker("Max ping", selection: $settings.maximumLatencyMs) {
-                ForEach(AppSettings.maximumLatencyOptions, id: \.value) { option in
-                    Text(option.label).tag(option.value)
+            VStack(alignment: .leading, spacing: 12) {
+                Picker("Max ping", selection: $settings.maximumLatencyMs) {
+                    ForEach(AppSettings.maximumLatencyOptions, id: \.value) { option in
+                        Text(option.label).tag(option.value)
+                    }
                 }
-            }
-            .pickerStyle(.segmented)
+                .pickerStyle(.segmented)
 
-            Picker("Min download", selection: $settings.minimumDownloadMbps) {
-                ForEach(AppSettings.minimumDownloadOptions, id: \.value) { option in
-                    Text(option.label).tag(option.value)
+                Picker("Min download", selection: $settings.minimumDownloadMbps) {
+                    ForEach(AppSettings.minimumDownloadOptions, id: \.value) { option in
+                        Text(option.label).tag(option.value)
+                    }
+                }
+                .pickerStyle(.segmented)
+            }
+
+            Divider()
+
+            VStack(alignment: .leading, spacing: 8) {
+                sectionTitle("Manual test")
+                HStack {
+                    Button("Test current quality") {
+                        Task { await switcher.measureCurrentQuality() }
+                    }
+
+                    Text(switcher.lastQuality?.summary ?? "Not tested")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
             }
-            .pickerStyle(.segmented)
+
+            Text("The download sample uses about 1 MB per test. Keep automatic quality switching off when you want to avoid cellular data use.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            Spacer()
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    }
+
+    private func backupListRow(index: Int, ssid: String) -> some View {
+        Button {
+            selectedBackupSSID = ssid
+        } label: {
+            HStack(spacing: 10) {
+                Text("\(index + 1).")
+                    .foregroundStyle(.secondary)
+                    .frame(width: 24, alignment: .leading)
+
+                Circle()
+                    .fill(Color(nsColor: settings.color(for: ssid).nsColor))
+                    .frame(width: 12, height: 12)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(ssid)
+                        .foregroundStyle(.primary)
+                        .lineLimit(1)
+
+                    Text(FallbackPasswordStore.hasPassword(for: ssid) ? "Password saved" : "Password missing")
+                        .font(.caption)
+                        .foregroundStyle(FallbackPasswordStore.hasPassword(for: ssid) ? Color.secondary : Color.orange)
+                }
+
+                Spacer()
+            }
+            .padding(.vertical, 7)
+            .padding(.horizontal, 8)
+            .background(
+                RoundedRectangle(cornerRadius: 6)
+                    .fill(selectedBackupSSID == ssid ? Color.accentColor.opacity(0.16) : Color.clear)
+            )
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func backupDetail(_ ssid: String) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                sectionTitle(ssid)
+                Spacer()
+                Button("Up") { settings.moveBackupUp(ssid) }
+                    .disabled(settings.backupSSIDs.first == ssid)
+                Button("Down") { settings.moveBackupDown(ssid) }
+                    .disabled(settings.backupSSIDs.last == ssid)
+                Button("Remove") { removeBackup(ssid) }
+            }
+
+            HStack(spacing: 8) {
+                Text("Color")
+                    .foregroundStyle(.secondary)
+                    .frame(width: 72, alignment: .leading)
+                colorSwatches(for: ssid)
+            }
+
+            SecureField("Wi-Fi password", text: $hotspotPassword)
+                .textFieldStyle(.roundedBorder)
 
             HStack {
-                Button("Test current quality") {
-                    Task { await switcher.measureCurrentQuality() }
+                Button(passwordIsSaved ? "Update password" : "Save password") {
+                    saveHotspotPassword()
                 }
+                .disabled(hotspotPassword.isEmpty)
 
-                Text(switcher.lastQuality?.summary ?? "Not tested")
+                Button("Remove password") {
+                    removeHotspotPassword()
+                }
+                .disabled(!passwordIsSaved)
+
+                Text(passwordMessage ?? (passwordIsSaved ? "Password saved" : "No saved password"))
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(passwordIsSaved ? Color.secondary : Color.orange)
+                    .lineLimit(1)
             }
-
-            helperText("The automatic quality check uses ping plus a small download sample. It only affects switching when this option is enabled.")
         }
     }
 
-    private var networksAvailableToAdd: [String] {
-        switcher.availableNetworks.filter { !settings.backupSSIDs.contains($0) }
+    private func colorSwatches(for ssid: String) -> some View {
+        HStack(spacing: 8) {
+            ForEach(AppSettings.ActiveColor.allCases) { color in
+                Button {
+                    settings.setColor(color, for: ssid)
+                } label: {
+                    Circle()
+                        .fill(Color(nsColor: color.nsColor))
+                        .frame(width: 18, height: 18)
+                        .overlay(
+                            Circle()
+                                .stroke(settings.color(for: ssid) == color ? Color.primary : Color.clear, lineWidth: 2)
+                        )
+                        .padding(4)
+                }
+                .buttonStyle(.plain)
+                .help("\(color.title) for \(ssid)")
+            }
+        }
     }
 
-    private var passwordStatusTitle: String {
-        guard !passwordSSID.isEmpty else { return "No backup selected" }
-        return passwordIsSaved ? "Saved for \(passwordSSID)" : "Not saved"
+    private func header(_ title: String, subtitle: String) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(title)
+                .font(.title2.weight(.semibold))
+            Text(subtitle)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    private func sectionTitle(_ title: String) -> some View {
+        Text(title)
+            .font(.headline)
+    }
+
+    private func emptyState(_ value: String) -> some View {
+        Text(value)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .frame(maxWidth: .infinity, minHeight: 52, alignment: .center)
+    }
+
+    private func statusRow(_ label: String, value: String, color: Color) -> some View {
+        HStack(alignment: .firstTextBaseline) {
+            Text(label)
+                .frame(width: 82, alignment: .leading)
+            Text(value)
+                .foregroundStyle(color)
+                .lineLimit(2)
+        }
     }
 
     private var statusColor: Color {
@@ -274,96 +354,12 @@ struct SettingsView: View {
         return .secondary
     }
 
-    private func backupRow(index: Int, ssid: String) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack(spacing: 8) {
-                Text("\(index + 1).")
-                    .foregroundStyle(.secondary)
-                    .frame(width: 22, alignment: .leading)
-
-                Circle()
-                    .fill(Color(nsColor: settings.color(for: ssid).nsColor))
-                    .frame(width: 12, height: 12)
-
-                Text(ssid)
-                    .lineLimit(1)
-
-                Spacer()
-
-                let hasPassword = FallbackPasswordStore.hasPassword(for: ssid)
-
-                Text(hasPassword ? "Password saved" : "No password")
-                    .font(.caption)
-                    .foregroundStyle(hasPassword ? Color.secondary : Color.orange)
-            }
-
-            HStack(spacing: 8) {
-                Text("Color")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .frame(width: 42, alignment: .leading)
-
-                colorSwatches(for: ssid)
-
-                Spacer()
-
-                Button("Up") {
-                    settings.moveBackupUp(ssid)
-                }
-                .disabled(index == 0)
-
-                Button("Down") {
-                    settings.moveBackupDown(ssid)
-                }
-                .disabled(index == settings.backupSSIDs.count - 1)
-
-                Button("Remove") {
-                    settings.removeBackup(ssid)
-                    if passwordSSID == ssid {
-                        passwordSSID = settings.primaryBackupSSID ?? ""
-                    }
-                }
-            }
-        }
+    private var networksAvailableToAdd: [String] {
+        switcher.availableNetworks.filter { !settings.backupSSIDs.contains($0) }
     }
 
-    private func colorSwatches(for ssid: String) -> some View {
-        HStack(spacing: 6) {
-            ForEach(AppSettings.ActiveColor.allCases) { color in
-                Button {
-                    settings.setColor(color, for: ssid)
-                } label: {
-                    Circle()
-                        .fill(Color(nsColor: color.nsColor))
-                        .frame(width: 16, height: 16)
-                        .overlay(
-                            Circle()
-                                .stroke(settings.color(for: ssid) == color ? Color.primary : Color.clear, lineWidth: 2)
-                        )
-                        .padding(3)
-                }
-                .buttonStyle(.plain)
-                .help("\(color.title) for \(ssid)")
-                .accessibilityLabel("\(color.title) for \(ssid)")
-            }
-        }
-    }
-
-    private func helperText(_ value: String) -> some View {
-        Text(value)
-            .font(.caption)
-            .foregroundStyle(.secondary)
-            .fixedSize(horizontal: false, vertical: true)
-    }
-
-    private func statusRow(_ label: String, value: String, color: Color) -> some View {
-        HStack(alignment: .firstTextBaseline) {
-            Text(label)
-                .frame(width: 72, alignment: .leading)
-            Text(value)
-                .foregroundStyle(color)
-                .fixedSize(horizontal: false, vertical: true)
-        }
+    private var selectedBackup: String? {
+        settings.backupSSIDs.contains(selectedBackupSSID) ? selectedBackupSSID : nil
     }
 
     private func syncSelectionState() {
@@ -371,26 +367,42 @@ struct SettingsView: View {
             selectedNetworkToAdd = networksAvailableToAdd.first ?? ""
         }
 
-        if passwordSSID.isEmpty || !settings.backupSSIDs.contains(passwordSSID) {
-            passwordSSID = settings.primaryBackupSSID ?? ""
+        if selectedBackupSSID.isEmpty || !settings.backupSSIDs.contains(selectedBackupSSID) {
+            selectedBackupSSID = settings.primaryBackupSSID ?? ""
         }
     }
 
     private func addSelectedNetwork() {
         settings.addBackup(selectedNetworkToAdd)
+        selectedBackupSSID = selectedNetworkToAdd
         selectedNetworkToAdd = networksAvailableToAdd.first ?? ""
         syncSelectionState()
     }
 
+    private func removeBackup(_ ssid: String) {
+        settings.removeBackup(ssid)
+        if selectedBackupSSID == ssid {
+            selectedBackupSSID = settings.primaryBackupSSID ?? ""
+        }
+    }
+
+    private func resetPasswordEditor() {
+        hotspotPassword = ""
+        passwordMessage = nil
+        refreshPasswordState()
+    }
+
     private func refreshPasswordState() {
-        passwordIsSaved = !passwordSSID.isEmpty && FallbackPasswordStore.hasPassword(for: passwordSSID)
+        passwordIsSaved = selectedBackup.map { FallbackPasswordStore.hasPassword(for: $0) } ?? false
     }
 
     private func saveHotspotPassword() {
+        guard let selectedBackup else { return }
+
         do {
-            try FallbackPasswordStore.save(hotspotPassword, for: passwordSSID)
+            try FallbackPasswordStore.save(hotspotPassword, for: selectedBackup)
             hotspotPassword = ""
-            passwordMessage = "Password saved in Keychain."
+            passwordMessage = "Saved"
             refreshPasswordState()
         } catch {
             passwordMessage = error.localizedDescription
@@ -398,9 +410,11 @@ struct SettingsView: View {
     }
 
     private func removeHotspotPassword() {
-        FallbackPasswordStore.deletePassword(for: passwordSSID)
+        guard let selectedBackup else { return }
+
+        FallbackPasswordStore.deletePassword(for: selectedBackup)
         hotspotPassword = ""
-        passwordMessage = "Password removed."
+        passwordMessage = "Removed"
         refreshPasswordState()
     }
 }
