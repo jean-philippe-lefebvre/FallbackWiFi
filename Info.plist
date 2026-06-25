@@ -8,6 +8,8 @@
     <string>FallbackWiFi</string>
     <key>CFBundleDisplayName</key>
     <string>FallbackWiFi</string>
+    <key>CFBundleIconFile</key>
+    <string>project-icon</string>
     <key>CFBundleExecutable</key>
     <string>FallbackWiFi</string>
     <key>CFBundleVersion</key>

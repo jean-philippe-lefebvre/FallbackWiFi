@@ -1,5 +1,9 @@
 # FallbackWiFi
 
+<p>
+  <img src="assets/project-icon.png" alt="FallbackWiFi app icon" width="96">
+</p>
+
 Tiny macOS menu bar app that switches to a selected backup Wi-Fi when the current connection loses internet access.
 
 <p>

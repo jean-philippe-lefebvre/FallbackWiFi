@@ -18,6 +18,7 @@ bundle: build
 	@mkdir -p $(BUNDLE_DIR)/Contents/Resources
 	@cp $(BUILD_DIR)/$(EXECUTABLE) $(BUNDLE_DIR)/Contents/MacOS/
 	@cp Info.plist $(BUNDLE_DIR)/Contents/
+	@cp assets/project-icon.icns $(BUNDLE_DIR)/Contents/Resources/
 	@echo "Bundle created at $(BUNDLE_DIR)"
 
 sign: bundle
