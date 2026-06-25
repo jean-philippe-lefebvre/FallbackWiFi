@@ -2,6 +2,10 @@
 
 Tiny macOS menu bar app that switches to a selected backup Wi-Fi when the current connection loses internet access.
 
+<p>
+  <img src="assets/screenshots/menu-bar-overview.png" alt="FallbackWiFi active in the macOS menu bar" width="580">
+</p>
+
 ## MVP
 
 - Manage a prioritized list of backup Wi-Fi networks.
@@ -13,6 +17,24 @@ Tiny macOS menu bar app that switches to a selected backup Wi-Fi when the curren
 - Tint the selected shield/Wi-Fi icon when fallback is active.
 - Configure the fallback active color in Settings.
 - Run periodic connection checks and manually test from the menu.
+
+## Screenshots
+
+### Menu bar
+
+FallbackWiFi lives in the macOS menu bar and keeps the icon stable during background connection checks.
+
+<p>
+  <img src="assets/screenshots/menu-dropdown.png" alt="FallbackWiFi menu bar dropdown" width="458">
+</p>
+
+### Backup settings
+
+Backups can be prioritized, assigned per-network colors, and configured with a saved Keychain password.
+
+<p>
+  <img src="assets/screenshots/settings-backups.png" alt="FallbackWiFi backup settings window" width="654">
+</p>
 
 ## Development
 
