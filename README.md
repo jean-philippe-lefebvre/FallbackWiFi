@@ -1,6 +1,6 @@
 # FallbackWiFi
 
-<p>
+<p align="center">
   <img src="assets/project-icon.png" alt="FallbackWiFi app icon" width="96">
 </p>
 
@@ -30,6 +30,18 @@ FallbackWiFi lives in the macOS menu bar and keeps the icon stable during backgr
 
 <p>
   <img src="assets/screenshots/menu-dropdown.png" alt="FallbackWiFi menu bar dropdown" width="458">
+</p>
+
+When fallback is active, the menu bar icon uses the configured backup color.
+
+<p>
+  <img src="assets/screenshots/menu-bar-fallback-active.png" alt="FallbackWiFi active fallback color in the macOS menu bar" width="464">
+</p>
+
+The menu also shows the active fallback network while keeping the quick actions easy to reach.
+
+<p>
+  <img src="assets/screenshots/menu-dropdown-fallback-active.png" alt="FallbackWiFi menu dropdown when fallback is active" width="506">
 </p>
 
 ### Backup settings
