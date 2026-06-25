@@ -8,6 +8,7 @@ final class StatusBarController: NSObject {
     private let statusItem: NSStatusItem
     private lazy var settingsWindowController = SettingsWindowController(settings: settings, switcher: switcher)
     private var cancellables = Set<AnyCancellable>()
+    private var lastStableIconState: WiFiSwitcher.State = .idle
 
     init(settings: AppSettings, switcher: WiFiSwitcher) {
         self.settings = settings
@@ -129,15 +130,25 @@ final class StatusBarController: NSObject {
 
     private func updateIcon() {
         guard let button = statusItem.button else { return }
+        let iconState = stableIconState(for: switcher.state)
         button.image = FallbackIconRenderer.image(
-            state: switcher.state,
-            activeColor: activeIconColor
+            state: iconState,
+            activeColor: activeIconColor(for: iconState)
         )
         button.toolTip = "FallbackWiFi: \(switcher.state.title)"
     }
 
-    private var activeIconColor: NSColor {
-        if case .fallbackActive(let ssid) = switcher.state {
+    private func stableIconState(for state: WiFiSwitcher.State) -> WiFiSwitcher.State {
+        if case .checking = state {
+            return lastStableIconState
+        }
+
+        lastStableIconState = state
+        return state
+    }
+
+    private func activeIconColor(for state: WiFiSwitcher.State) -> NSColor {
+        if case .fallbackActive(let ssid) = state {
             return settings.color(for: ssid).nsColor
         }
 

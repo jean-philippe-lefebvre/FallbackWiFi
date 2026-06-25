@@ -16,7 +16,7 @@ enum FallbackIconRenderer {
         switch state {
         case .noBackupSelected, .disconnected:
             0.45
-        case .checking, .switching:
+        case .switching:
             0.7
         case .error:
             0.85
