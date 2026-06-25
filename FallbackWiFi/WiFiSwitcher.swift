@@ -99,7 +99,7 @@ final class WiFiSwitcher: ObservableObject {
 
     func measureCurrentQuality() async {
         state = .checking
-        lastQuality = await qualityChecker.measure()
+        lastQuality = await qualityChecker.measureFull()
         if let currentSSID, settings.backupSSIDs.contains(currentSSID) {
             state = .fallbackActive(currentSSID)
         } else {
@@ -195,12 +195,19 @@ final class WiFiSwitcher: ObservableObject {
     private func poorQualityIfNeeded() async -> ConnectionQuality? {
         guard settings.qualitySwitchEnabled else { return nil }
 
-        let quality = await qualityChecker.measure()
-        lastQuality = quality
-        return quality.isPoor(
-            maximumLatencyMs: settings.maximumLatencyMs,
-            minimumDownloadMbps: settings.minimumDownloadMbps
-        ) ? quality : nil
+        let lightQuality = await qualityChecker.measureLight()
+        lastQuality = lightQuality
+        guard lightQuality.isLightPoor(maximumLatencyMs: settings.maximumLatencyMs) else {
+            return nil
+        }
+
+        guard settings.confirmQualityWithSpeedTest else {
+            return lightQuality
+        }
+
+        let confirmedQuality = lightQuality.addingSpeed(from: await qualityChecker.measureSpeed())
+        lastQuality = confirmedQuality
+        return confirmedQuality.isSpeedPoor(minimumDownloadMbps: settings.minimumDownloadMbps) ? confirmedQuality : nil
     }
 
     private func switchCandidates(from backups: [String], currentSSID: String?) -> [String] {

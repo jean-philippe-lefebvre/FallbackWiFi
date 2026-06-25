@@ -39,6 +39,7 @@ final class AppSettings: ObservableObject {
         static let activeColor = "activeColor"
         static let checkInterval = "checkInterval"
         static let qualitySwitchEnabled = "qualitySwitchEnabled"
+        static let confirmQualityWithSpeedTest = "confirmQualityWithSpeedTest"
         static let maximumLatencyMs = "maximumLatencyMs"
         static let minimumDownloadMbps = "minimumDownloadMbps"
     }
@@ -114,6 +115,10 @@ final class AppSettings: ObservableObject {
         didSet { defaults.set(qualitySwitchEnabled, forKey: Key.qualitySwitchEnabled) }
     }
 
+    @Published var confirmQualityWithSpeedTest: Bool {
+        didSet { defaults.set(confirmQualityWithSpeedTest, forKey: Key.confirmQualityWithSpeedTest) }
+    }
+
     @Published var maximumLatencyMs: Double {
         didSet {
             let normalized = Self.normalizedOption(maximumLatencyMs, options: Self.maximumLatencyOptions)
@@ -147,6 +152,7 @@ final class AppSettings: ObservableObject {
             Key.activeColor: ActiveColor.green.rawValue,
             Key.checkInterval: 10,
             Key.qualitySwitchEnabled: false,
+            Key.confirmQualityWithSpeedTest: false,
             Key.maximumLatencyMs: 500,
             Key.minimumDownloadMbps: 2,
         ])
@@ -166,6 +172,7 @@ final class AppSettings: ObservableObject {
         activeColor = activeColorValue
         checkInterval = Self.normalizedInterval(defaults.double(forKey: Key.checkInterval))
         qualitySwitchEnabled = defaults.bool(forKey: Key.qualitySwitchEnabled)
+        confirmQualityWithSpeedTest = defaults.bool(forKey: Key.confirmQualityWithSpeedTest)
         maximumLatencyMs = Self.normalizedOption(defaults.double(forKey: Key.maximumLatencyMs), options: Self.maximumLatencyOptions)
         minimumDownloadMbps = Self.normalizedOption(defaults.double(forKey: Key.minimumDownloadMbps), options: Self.minimumDownloadOptions)
 

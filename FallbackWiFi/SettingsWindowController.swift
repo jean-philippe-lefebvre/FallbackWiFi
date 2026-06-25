@@ -240,9 +240,14 @@ struct SettingsView: View {
 
     private var qualityTab: some View {
         VStack(alignment: .leading, spacing: 22) {
-            contentHeader("Connection Quality", subtitle: "Optional quality checks can trigger fallback before a full outage.")
+            contentHeader("Connection Quality", subtitle: "Light monitoring watches ping, jitter, and packet loss before a full outage.")
 
-            Toggle("Switch when connection quality is poor", isOn: $settings.qualitySwitchEnabled)
+            VStack(alignment: .leading, spacing: 10) {
+                Toggle("Switch when connection quality is poor", isOn: $settings.qualitySwitchEnabled)
+                Toggle("Run speed test only after degradation", isOn: $settings.confirmQualityWithSpeedTest)
+                    .disabled(!settings.qualitySwitchEnabled)
+                    .opacity(settings.qualitySwitchEnabled ? 1 : 0.6)
+            }
 
             VStack(alignment: .leading, spacing: 14) {
                 Picker("Max ping", selection: $settings.maximumLatencyMs) {
@@ -260,6 +265,8 @@ struct SettingsView: View {
                 }
                 .pickerStyle(.segmented)
                 .frame(maxWidth: 500)
+                .disabled(!settings.confirmQualityWithSpeedTest)
+                .opacity(settings.confirmQualityWithSpeedTest ? 1 : 0.6)
             }
 
             Divider()
@@ -280,7 +287,7 @@ struct SettingsView: View {
                 }
             }
 
-            Text("The download sample uses about 1 MB per test. Keep automatic quality switching off when you want to avoid cellular data use.")
+            Text("Automatic checks use ping only by default. The 1 MB download sample runs only for manual tests or after degradation when speed confirmation is enabled.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
