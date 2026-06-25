@@ -33,6 +33,7 @@ final class AppSettings: ObservableObject {
     private enum Key {
         static let backupSSID = "backupSSID"
         static let backupSSIDs = "backupSSIDs"
+        static let backupColors = "backupColors"
         static let autoSwitchEnabled = "autoSwitchEnabled"
         static let launchAtLoginEnabled = "launchAtLoginEnabled"
         static let activeColor = "activeColor"
@@ -75,6 +76,10 @@ final class AppSettings: ObservableObject {
             defaults.set(backupSSIDs, forKey: Key.backupSSIDs)
             defaults.set(primaryBackupSSID ?? "", forKey: Key.backupSSID)
         }
+    }
+
+    @Published var backupColors: [String: String] {
+        didSet { defaults.set(backupColors, forKey: Key.backupColors) }
     }
 
     var backupSSID: String {
@@ -136,6 +141,7 @@ final class AppSettings: ObservableObject {
         defaults.register(defaults: [
             Key.backupSSID: "",
             Key.backupSSIDs: [],
+            Key.backupColors: [:],
             Key.autoSwitchEnabled: true,
             Key.launchAtLoginEnabled: true,
             Key.activeColor: ActiveColor.green.rawValue,
@@ -147,10 +153,17 @@ final class AppSettings: ObservableObject {
 
         let storedBackups = defaults.stringArray(forKey: Key.backupSSIDs) ?? []
         let legacyBackup = defaults.string(forKey: Key.backupSSID) ?? ""
-        backupSSIDs = Self.normalizedNetworks(storedBackups.isEmpty && !legacyBackup.isEmpty ? [legacyBackup] : storedBackups)
+        let activeColorValue = ActiveColor(rawValue: defaults.string(forKey: Key.activeColor) ?? "") ?? .green
+        let migratedBackups = Self.normalizedNetworks(storedBackups.isEmpty && !legacyBackup.isEmpty ? [legacyBackup] : storedBackups)
+        backupSSIDs = migratedBackups
+        backupColors = Self.normalizedBackupColors(
+            defaults.dictionary(forKey: Key.backupColors),
+            backups: migratedBackups,
+            defaultColor: activeColorValue
+        )
         autoSwitchEnabled = defaults.bool(forKey: Key.autoSwitchEnabled)
         launchAtLoginEnabled = defaults.bool(forKey: Key.launchAtLoginEnabled)
-        activeColor = ActiveColor(rawValue: defaults.string(forKey: Key.activeColor) ?? "") ?? .green
+        activeColor = activeColorValue
         checkInterval = Self.normalizedInterval(defaults.double(forKey: Key.checkInterval))
         qualitySwitchEnabled = defaults.bool(forKey: Key.qualitySwitchEnabled)
         maximumLatencyMs = Self.normalizedOption(defaults.double(forKey: Key.maximumLatencyMs), options: Self.maximumLatencyOptions)
@@ -158,16 +171,23 @@ final class AppSettings: ObservableObject {
 
         defaults.set(backupSSIDs, forKey: Key.backupSSIDs)
         defaults.set(primaryBackupSSID ?? "", forKey: Key.backupSSID)
+        defaults.set(backupColors, forKey: Key.backupColors)
     }
 
     func addBackup(_ ssid: String) {
         let trimmed = ssid.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty, !backupSSIDs.contains(trimmed) else { return }
         backupSSIDs.append(trimmed)
+        if backupColors[trimmed] == nil {
+            setColor(activeColor, for: trimmed)
+        }
     }
 
     func removeBackup(_ ssid: String) {
         backupSSIDs.removeAll { $0 == ssid }
+        var colors = backupColors
+        colors.removeValue(forKey: ssid)
+        backupColors = colors
     }
 
     func moveBackupUp(_ ssid: String) {
@@ -178,6 +198,17 @@ final class AppSettings: ObservableObject {
     func moveBackupDown(_ ssid: String) {
         guard let index = backupSSIDs.firstIndex(of: ssid), index < backupSSIDs.count - 1 else { return }
         backupSSIDs.swapAt(index, index + 1)
+    }
+
+    func color(for ssid: String) -> ActiveColor {
+        ActiveColor(rawValue: backupColors[ssid] ?? "") ?? activeColor
+    }
+
+    func setColor(_ color: ActiveColor, for ssid: String) {
+        guard backupSSIDs.contains(ssid) else { return }
+        var colors = backupColors
+        colors[ssid] = color.rawValue
+        backupColors = colors
     }
 
     private static func normalizedInterval(_ value: TimeInterval) -> TimeInterval {
@@ -198,5 +229,26 @@ final class AppSettings: ObservableObject {
             seen.insert(trimmed)
             return trimmed
         }
+    }
+
+    private static func normalizedBackupColors(
+        _ stored: [String: Any]?,
+        backups: [String],
+        defaultColor: ActiveColor
+    ) -> [String: String] {
+        var colors: [String: String] = [:]
+
+        for backup in backups {
+            if
+                let rawValue = stored?[backup] as? String,
+                ActiveColor(rawValue: rawValue) != nil
+            {
+                colors[backup] = rawValue
+            } else {
+                colors[backup] = defaultColor.rawValue
+            }
+        }
+
+        return colors
     }
 }

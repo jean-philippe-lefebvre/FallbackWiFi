@@ -39,6 +39,11 @@ final class StatusBarController: NSObject {
             .sink { [weak self] _ in self?.updateIcon() }
             .store(in: &cancellables)
 
+        settings.$backupColors
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in self?.updateIcon() }
+            .store(in: &cancellables)
+
         settings.$checkInterval
             .receive(on: RunLoop.main)
             .sink { [weak self] _ in self?.switcher.restartTimer() }
@@ -157,8 +162,16 @@ final class StatusBarController: NSObject {
         guard let button = statusItem.button else { return }
         button.image = FallbackIconRenderer.image(
             state: switcher.state,
-            activeColor: settings.activeColor.nsColor
+            activeColor: activeIconColor
         )
         button.toolTip = "FallbackWiFi: \(switcher.state.title)"
+    }
+
+    private var activeIconColor: NSColor {
+        if case .fallbackActive(let ssid) = switcher.state {
+            return settings.color(for: ssid).nsColor
+        }
+
+        return settings.activeColor.nsColor
     }
 }

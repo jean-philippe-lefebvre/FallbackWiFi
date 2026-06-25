@@ -73,7 +73,7 @@ struct SettingsView: View {
                 Divider()
 
                 VStack(alignment: .leading, spacing: 10) {
-                    Text("Fallback active color")
+                    Text("Default backup color")
                         .font(.headline)
 
                     HStack(spacing: 8) {
@@ -105,13 +105,13 @@ struct SettingsView: View {
                         }
                     }
 
-                    helperText("The menu bar icon stays monochrome during normal Wi-Fi use. This color appears only when the backup network is active.")
+                    helperText("New backups use this color by default. Existing backups can be changed directly in the priority list.")
                 }
 
                 Divider()
 
                 VStack(alignment: .leading, spacing: 6) {
-                    statusRow("Status", value: switcher.state.title, color: switcher.state.isFallbackActive ? Color(nsColor: settings.activeColor.nsColor) : .secondary)
+                    statusRow("Status", value: switcher.state.title, color: statusColor)
                     statusRow("Current", value: switcher.currentSSID ?? "None", color: .secondary)
                     statusRow("Quality", value: switcher.lastQuality?.summary ?? "Not tested", color: .secondary)
 
@@ -266,38 +266,85 @@ struct SettingsView: View {
         return passwordIsSaved ? "Saved for \(passwordSSID)" : "Not saved"
     }
 
+    private var statusColor: Color {
+        if case .fallbackActive(let ssid) = switcher.state {
+            return Color(nsColor: settings.color(for: ssid).nsColor)
+        }
+
+        return .secondary
+    }
+
     private func backupRow(index: Int, ssid: String) -> some View {
-        HStack(spacing: 8) {
-            Text("\(index + 1).")
-                .foregroundStyle(.secondary)
-                .frame(width: 22, alignment: .leading)
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 8) {
+                Text("\(index + 1).")
+                    .foregroundStyle(.secondary)
+                    .frame(width: 22, alignment: .leading)
 
-            Text(ssid)
-                .lineLimit(1)
+                Circle()
+                    .fill(Color(nsColor: settings.color(for: ssid).nsColor))
+                    .frame(width: 12, height: 12)
 
-            Spacer()
+                Text(ssid)
+                    .lineLimit(1)
 
-            let hasPassword = FallbackPasswordStore.hasPassword(for: ssid)
+                Spacer()
 
-            Text(hasPassword ? "Password saved" : "No password")
-                .font(.caption)
-                .foregroundStyle(hasPassword ? Color.secondary : Color.orange)
+                let hasPassword = FallbackPasswordStore.hasPassword(for: ssid)
 
-            Button("Up") {
-                settings.moveBackupUp(ssid)
+                Text(hasPassword ? "Password saved" : "No password")
+                    .font(.caption)
+                    .foregroundStyle(hasPassword ? Color.secondary : Color.orange)
             }
-            .disabled(index == 0)
 
-            Button("Down") {
-                settings.moveBackupDown(ssid)
-            }
-            .disabled(index == settings.backupSSIDs.count - 1)
+            HStack(spacing: 8) {
+                Text("Color")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .frame(width: 42, alignment: .leading)
 
-            Button("Remove") {
-                settings.removeBackup(ssid)
-                if passwordSSID == ssid {
-                    passwordSSID = settings.primaryBackupSSID ?? ""
+                colorSwatches(for: ssid)
+
+                Spacer()
+
+                Button("Up") {
+                    settings.moveBackupUp(ssid)
                 }
+                .disabled(index == 0)
+
+                Button("Down") {
+                    settings.moveBackupDown(ssid)
+                }
+                .disabled(index == settings.backupSSIDs.count - 1)
+
+                Button("Remove") {
+                    settings.removeBackup(ssid)
+                    if passwordSSID == ssid {
+                        passwordSSID = settings.primaryBackupSSID ?? ""
+                    }
+                }
+            }
+        }
+    }
+
+    private func colorSwatches(for ssid: String) -> some View {
+        HStack(spacing: 6) {
+            ForEach(AppSettings.ActiveColor.allCases) { color in
+                Button {
+                    settings.setColor(color, for: ssid)
+                } label: {
+                    Circle()
+                        .fill(Color(nsColor: color.nsColor))
+                        .frame(width: 16, height: 16)
+                        .overlay(
+                            Circle()
+                                .stroke(settings.color(for: ssid) == color ? Color.primary : Color.clear, lineWidth: 2)
+                        )
+                        .padding(3)
+                }
+                .buttonStyle(.plain)
+                .help("\(color.title) for \(ssid)")
+                .accessibilityLabel("\(color.title) for \(ssid)")
             }
         }
     }
