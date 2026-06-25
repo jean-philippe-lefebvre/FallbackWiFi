@@ -57,6 +57,8 @@ cat >"$INFO_PLIST" <<PLIST
 </plist>
 PLIST
 
+codesign --deep --force --sign "-" --identifier "$BUNDLE_ID" --options=runtime "$APP_BUNDLE" >/dev/null
+
 open_app() {
   /usr/bin/open -n "$APP_BUNDLE"
 }

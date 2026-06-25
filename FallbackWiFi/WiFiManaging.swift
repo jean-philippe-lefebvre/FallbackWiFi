@@ -60,7 +60,7 @@ struct SystemWiFiManager: WiFiManaging {
     }
 
     func connect(to ssid: String) async throws {
-        guard let password = await keychainPassword(for: ssid) else {
+        guard let password = try await keychainPassword(for: ssid) else {
             throw WiFiError.commandFailed("Save the password for \(ssid) in FallbackWiFi Settings before auto-switching.")
         }
 
@@ -119,7 +119,7 @@ struct SystemWiFiManager: WiFiManaging {
         }.value
     }
 
-    private func keychainPassword(for ssid: String) async -> String? {
-        FallbackPasswordStore.password(for: ssid)
+    private func keychainPassword(for ssid: String) async throws -> String? {
+        try FallbackPasswordStore.password(for: ssid)
     }
 }

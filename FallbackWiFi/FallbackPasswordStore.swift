@@ -22,15 +22,19 @@ enum FallbackPasswordStore {
         }
     }
 
-    static func password(for ssid: String) -> String? {
+    static func password(for ssid: String) throws -> String? {
         var query = baseQuery(for: ssid)
         query[kSecMatchLimit as String] = kSecMatchLimitOne
         query[kSecReturnData as String] = true
 
         var item: CFTypeRef?
         let status = SecItemCopyMatching(query as CFDictionary, &item)
-        guard status == errSecSuccess, let data = item as? Data else {
+        if status == errSecItemNotFound {
             return nil
+        }
+
+        guard status == errSecSuccess, let data = item as? Data else {
+            throw WiFiError.commandFailed(readErrorMessage(for: ssid, status: status))
         }
 
         return String(data: data, encoding: .utf8)
@@ -54,5 +58,16 @@ enum FallbackPasswordStore {
             kSecAttrService as String: service,
             kSecAttrAccount as String: ssid,
         ]
+    }
+
+    private static func readErrorMessage(for ssid: String, status: OSStatus) -> String {
+        switch status {
+        case errSecAuthFailed, errSecInteractionNotAllowed:
+            return "Keychain access was denied for \(ssid). Choose Always Allow when macOS asks so FallbackWiFi can use the saved password."
+        case errSecUserCanceled:
+            return "Keychain access was cancelled for \(ssid). Choose Always Allow when macOS asks so automatic switching can use the saved password."
+        default:
+            return "Could not read the saved password for \(ssid) from Keychain (\(status))."
+        }
     }
 }
