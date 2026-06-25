@@ -44,4 +44,41 @@ final class AppSettingsTests: XCTestCase {
 
         XCTAssertTrue(reloaded.confirmQualityWithSpeedTest)
     }
+
+    func testDefaultMaximumLatencyIsTighterForVideoCalls() {
+        let suiteName = "FallbackWiFiTests-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defaults.removePersistentDomain(forName: suiteName)
+
+        let settings = AppSettings(defaults: defaults)
+
+        XCTAssertEqual(settings.maximumLatencyMs, 100)
+        XCTAssertFalse(settings.maximumLatencyUsesCustom)
+    }
+
+    func testLegacyHighLatencyPresetMigratesToDefault() {
+        let suiteName = "FallbackWiFiTests-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defaults.removePersistentDomain(forName: suiteName)
+        defaults.set(500, forKey: "maximumLatencyMs")
+
+        let settings = AppSettings(defaults: defaults)
+
+        XCTAssertEqual(settings.maximumLatencyMs, 100)
+        XCTAssertFalse(settings.maximumLatencyUsesCustom)
+    }
+
+    func testCustomMaximumLatencyPersists() {
+        let suiteName = "FallbackWiFiTests-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defaults.removePersistentDomain(forName: suiteName)
+        let settings = AppSettings(defaults: defaults)
+
+        settings.maximumLatencyUsesCustom = true
+        settings.maximumLatencyMs = 275
+        let reloaded = AppSettings(defaults: defaults)
+
+        XCTAssertTrue(reloaded.maximumLatencyUsesCustom)
+        XCTAssertEqual(reloaded.maximumLatencyMs, 275)
+    }
 }

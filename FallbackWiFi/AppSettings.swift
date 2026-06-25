@@ -40,6 +40,7 @@ final class AppSettings: ObservableObject {
         static let checkInterval = "checkInterval"
         static let qualitySwitchEnabled = "qualitySwitchEnabled"
         static let confirmQualityWithSpeedTest = "confirmQualityWithSpeedTest"
+        static let maximumLatencyUsesCustom = "maximumLatencyUsesCustom"
         static let maximumLatencyMs = "maximumLatencyMs"
         static let minimumDownloadMbps = "minimumDownloadMbps"
     }
@@ -52,11 +53,13 @@ final class AppSettings: ObservableObject {
     ]
 
     static let maximumLatencyOptions: [(label: String, value: Double)] = [
+        ("50 ms", 50),
+        ("100 ms", 100),
         ("200 ms", 200),
-        ("500 ms", 500),
-        ("1 sec", 1_000),
-        ("2 sec", 2_000),
     ]
+
+    static let defaultMaximumLatencyMs: Double = 100
+    static let customMaximumLatencyRange: ClosedRange<Double> = 10...5_000
 
     static let minimumDownloadOptions: [(label: String, value: Double)] = [
         ("1 Mbps", 1),
@@ -119,9 +122,18 @@ final class AppSettings: ObservableObject {
         didSet { defaults.set(confirmQualityWithSpeedTest, forKey: Key.confirmQualityWithSpeedTest) }
     }
 
+    @Published var maximumLatencyUsesCustom: Bool {
+        didSet {
+            defaults.set(maximumLatencyUsesCustom, forKey: Key.maximumLatencyUsesCustom)
+            if !maximumLatencyUsesCustom, !Self.maximumLatencyOptions.map(\.value).contains(maximumLatencyMs) {
+                maximumLatencyMs = Self.defaultMaximumLatencyMs
+            }
+        }
+    }
+
     @Published var maximumLatencyMs: Double {
         didSet {
-            let normalized = Self.normalizedOption(maximumLatencyMs, options: Self.maximumLatencyOptions)
+            let normalized = Self.normalizedLatency(maximumLatencyMs, allowsCustom: maximumLatencyUsesCustom)
             if maximumLatencyMs != normalized {
                 maximumLatencyMs = normalized
                 return
@@ -153,7 +165,8 @@ final class AppSettings: ObservableObject {
             Key.checkInterval: 10,
             Key.qualitySwitchEnabled: false,
             Key.confirmQualityWithSpeedTest: false,
-            Key.maximumLatencyMs: 500,
+            Key.maximumLatencyUsesCustom: false,
+            Key.maximumLatencyMs: Self.defaultMaximumLatencyMs,
             Key.minimumDownloadMbps: 2,
         ])
 
@@ -173,7 +186,10 @@ final class AppSettings: ObservableObject {
         checkInterval = Self.normalizedInterval(defaults.double(forKey: Key.checkInterval))
         qualitySwitchEnabled = defaults.bool(forKey: Key.qualitySwitchEnabled)
         confirmQualityWithSpeedTest = defaults.bool(forKey: Key.confirmQualityWithSpeedTest)
-        maximumLatencyMs = Self.normalizedOption(defaults.double(forKey: Key.maximumLatencyMs), options: Self.maximumLatencyOptions)
+        let storedCustomLatencyFlag = defaults.object(forKey: Key.maximumLatencyUsesCustom) as? Bool
+        let usesCustomLatency = storedCustomLatencyFlag ?? false
+        maximumLatencyUsesCustom = usesCustomLatency
+        maximumLatencyMs = Self.normalizedLatency(defaults.double(forKey: Key.maximumLatencyMs), allowsCustom: usesCustomLatency)
         minimumDownloadMbps = Self.normalizedOption(defaults.double(forKey: Key.minimumDownloadMbps), options: Self.minimumDownloadOptions)
 
         defaults.set(backupSSIDs, forKey: Key.backupSSIDs)
@@ -226,6 +242,19 @@ final class AppSettings: ObservableObject {
     private static func normalizedOption(_ value: Double, options: [(label: String, value: Double)]) -> Double {
         let allowed = options.map(\.value)
         return allowed.contains(value) ? value : options.first?.value ?? value
+    }
+
+    private static func normalizedLatency(_ value: Double, allowsCustom: Bool) -> Double {
+        let presets = maximumLatencyOptions.map(\.value)
+        if presets.contains(value) {
+            return value
+        }
+
+        guard allowsCustom, value.isFinite else {
+            return defaultMaximumLatencyMs
+        }
+
+        return min(max(value.rounded(), customMaximumLatencyRange.lowerBound), customMaximumLatencyRange.upperBound)
     }
 
     private static func normalizedNetworks(_ values: [String]) -> [String] {

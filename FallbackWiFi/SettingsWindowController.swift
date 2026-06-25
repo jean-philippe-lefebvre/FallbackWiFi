@@ -250,13 +250,28 @@ struct SettingsView: View {
             }
 
             VStack(alignment: .leading, spacing: 14) {
-                Picker("Max ping", selection: $settings.maximumLatencyMs) {
+                Picker("Max ping", selection: maximumLatencySelection) {
                     ForEach(AppSettings.maximumLatencyOptions, id: \.value) { option in
-                        Text(option.label).tag(option.value)
+                        Text(option.label).tag(latencyTag(for: option.value))
                     }
+                    Text("Custom").tag("custom")
                 }
                 .pickerStyle(.segmented)
                 .frame(maxWidth: 500)
+
+                if settings.maximumLatencyUsesCustom {
+                    HStack(spacing: 10) {
+                        Text("Custom ping")
+                            .foregroundStyle(.secondary)
+                            .frame(width: 116, alignment: .leading)
+                        TextField("Max ping", value: $settings.maximumLatencyMs, format: .number.precision(.fractionLength(0)))
+                            .textFieldStyle(.roundedBorder)
+                            .monospacedDigit()
+                            .frame(width: 96)
+                        Text("ms")
+                            .foregroundStyle(.secondary)
+                    }
+                }
 
                 Picker("Min download", selection: $settings.minimumDownloadMbps) {
                     ForEach(AppSettings.minimumDownloadOptions, id: \.value) { option in
@@ -453,6 +468,28 @@ struct SettingsView: View {
                     .lineLimit(2)
             }
         }
+    }
+
+    private var maximumLatencySelection: Binding<String> {
+        Binding(
+            get: {
+                settings.maximumLatencyUsesCustom ? "custom" : latencyTag(for: settings.maximumLatencyMs)
+            },
+            set: { tag in
+                if tag == "custom" {
+                    settings.maximumLatencyUsesCustom = true
+                    return
+                }
+
+                guard let value = Double(tag) else { return }
+                settings.maximumLatencyMs = value
+                settings.maximumLatencyUsesCustom = false
+            }
+        )
+    }
+
+    private func latencyTag(for value: Double) -> String {
+        String(Int(value.rounded()))
     }
 
     private var passwordHelpText: String {
