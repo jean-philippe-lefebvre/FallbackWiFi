@@ -61,10 +61,30 @@ final class StatusBarController: NSObject {
         currentItem.isEnabled = false
         menu.addItem(currentItem)
 
-        let backupTitle = settings.backupSSID.isEmpty ? "Backup: not selected" : "Backup: \(settings.backupSSID)"
+        let backupTitle = settings.backupSSIDs.isEmpty
+            ? "Backups: not selected"
+            : "Backups: \(settings.backupSSIDs.count) configured"
         let backupItem = NSMenuItem(title: backupTitle, action: nil, keyEquivalent: "")
         backupItem.isEnabled = false
         menu.addItem(backupItem)
+
+        for (index, ssid) in settings.backupSSIDs.prefix(3).enumerated() {
+            let item = NSMenuItem(title: "\(index + 1). \(ssid)", action: nil, keyEquivalent: "")
+            item.isEnabled = false
+            menu.addItem(item)
+        }
+
+        if settings.backupSSIDs.count > 3 {
+            let moreItem = NSMenuItem(title: "+ \(settings.backupSSIDs.count - 3) more", action: nil, keyEquivalent: "")
+            moreItem.isEnabled = false
+            menu.addItem(moreItem)
+        }
+
+        if let quality = switcher.lastQuality {
+            let qualityItem = NSMenuItem(title: "Quality: \(quality.summary)", action: nil, keyEquivalent: "")
+            qualityItem.isEnabled = false
+            menu.addItem(qualityItem)
+        }
 
         let loginItem = NSMenuItem(title: LoginItemManager.statusTitle, action: nil, keyEquivalent: "")
         loginItem.isEnabled = false

@@ -5,6 +5,7 @@ protocol WiFiManaging: Sendable {
     func preferredNetworks() async throws -> [String]
     func currentNetwork() async throws -> String?
     func connect(to ssid: String) async throws
+    func isLikelyPersonalHotspotConnection() async -> Bool
 }
 
 enum WiFiError: LocalizedError {
@@ -63,6 +64,15 @@ struct SystemWiFiManager: WiFiManaging {
             throw WiFiError.commandFailed(result.standardError.isEmpty ? "Failed to join \(ssid)" : result.standardError)
         }
         NSLog("FallbackWiFi joined \(ssid) with networksetup")
+    }
+
+    func isLikelyPersonalHotspotConnection() async -> Bool {
+        guard let interface = try? await wifiInterface() else { return false }
+        let result = await ShellCommand.run("/sbin/ifconfig", [interface])
+        guard result.exitCode == 0 else { return false }
+
+        let output = result.standardOutput
+        return output.contains(" constrained") && output.contains("inet 172.20.10.")
     }
 
     private func wifiInterface() async throws -> String {

@@ -10,6 +10,7 @@ final class WiFiSwitcher: ObservableObject {
         case switching(String)
         case noBackupSelected
         case disconnected
+        case connectionPoor(String)
         case error(String)
 
         var title: String {
@@ -28,6 +29,8 @@ final class WiFiSwitcher: ObservableObject {
                 "No backup Wi-Fi selected"
             case .disconnected:
                 "Disconnected"
+            case .connectionPoor(let summary):
+                "Connection poor: \(summary)"
             case .error(let message):
                 "Error: \(message)"
             }
@@ -43,18 +46,29 @@ final class WiFiSwitcher: ObservableObject {
     @Published private(set) var currentSSID: String?
     @Published private(set) var availableNetworks: [String] = []
     @Published private(set) var lastCheckedAt: Date?
+    @Published private(set) var lastQuality: ConnectionQuality?
 
     private let settings: AppSettings
     private let wifiManager: WiFiManaging
     private let internetChecker: InternetChecking
+    private let qualityChecker: ConnectionQualityChecking
+    private let postJoinValidationDelayNanoseconds: UInt64
     private var timer: Timer?
     private var isChecking = false
     private var lastConnectedFallbackSSID: String?
 
-    init(settings: AppSettings, wifiManager: WiFiManaging, internetChecker: InternetChecking) {
+    init(
+        settings: AppSettings,
+        wifiManager: WiFiManaging,
+        internetChecker: InternetChecking,
+        qualityChecker: ConnectionQualityChecking = HTTPConnectionQualityChecker(),
+        postJoinValidationDelayNanoseconds: UInt64 = 2_000_000_000
+    ) {
         self.settings = settings
         self.wifiManager = wifiManager
         self.internetChecker = internetChecker
+        self.qualityChecker = qualityChecker
+        self.postJoinValidationDelayNanoseconds = postJoinValidationDelayNanoseconds
     }
 
     func start() {
@@ -83,6 +97,16 @@ final class WiFiSwitcher: ObservableObject {
         }
     }
 
+    func measureCurrentQuality() async {
+        state = .checking
+        lastQuality = await qualityChecker.measure()
+        if let currentSSID, settings.backupSSIDs.contains(currentSSID) {
+            state = .fallbackActive(currentSSID)
+        } else {
+            state = .primaryOnline(currentSSID)
+        }
+    }
+
     func checkNow(allowSwitch: Bool) async {
         guard !isChecking else { return }
         isChecking = true
@@ -91,10 +115,10 @@ final class WiFiSwitcher: ObservableObject {
         lastCheckedAt = Date()
         state = .checking
 
-        let backupSSID = settings.backupSSID
-        NSLog("FallbackWiFi check started. backup=\(backupSSID.isEmpty ? "none" : backupSSID), allowSwitch=\(allowSwitch), autoSwitch=\(settings.autoSwitchEnabled)")
+        let backups = settings.backupSSIDs
+        NSLog("FallbackWiFi check started. backups=\(backups.isEmpty ? "none" : backups.joined(separator: ", ")), allowSwitch=\(allowSwitch), autoSwitch=\(settings.autoSwitchEnabled)")
 
-        guard !backupSSID.isEmpty else {
+        guard !backups.isEmpty else {
             state = .noBackupSelected
             currentSSID = nil
             NSLog("FallbackWiFi check stopped: no backup selected")
@@ -102,24 +126,29 @@ final class WiFiSwitcher: ObservableObject {
         }
 
         do {
-            let ssid = try await wifiManager.currentNetwork()
+            var ssid = try await wifiManager.currentNetwork()
+            if ssid == nil {
+                ssid = await inferredFallbackSSIDWhenReadbackFails(backups: backups)
+            }
+
             currentSSID = ssid
             NSLog("FallbackWiFi current SSID: \(ssid ?? "none")")
 
-            if ssid == backupSSID {
-                lastConnectedFallbackSSID = backupSSID
-                state = .fallbackActive(backupSSID)
-                NSLog("FallbackWiFi backup already active")
-                return
-            }
-
             let hasInternet = await internetChecker.hasInternetAccess()
             NSLog("FallbackWiFi internet access: \(hasInternet)")
-            if hasInternet {
-                if ssid == nil, lastConnectedFallbackSSID == backupSSID {
-                    currentSSID = backupSSID
-                    state = .fallbackActive(backupSSID)
-                    NSLog("FallbackWiFi keeping fallback active after SSID readback disappeared")
+
+            let poorQuality = hasInternet ? await poorQualityIfNeeded() : nil
+            if let poorQuality {
+                NSLog("FallbackWiFi quality is poor: \(poorQuality.summary)")
+                guard settings.autoSwitchEnabled, allowSwitch else {
+                    state = .connectionPoor(poorQuality.summary)
+                    return
+                }
+            } else if hasInternet {
+                if let ssid, backups.contains(ssid) {
+                    lastConnectedFallbackSSID = ssid
+                    state = .fallbackActive(ssid)
+                    NSLog("FallbackWiFi backup already active")
                     return
                 }
 
@@ -134,16 +163,94 @@ final class WiFiSwitcher: ObservableObject {
                 return
             }
 
-            state = .switching(backupSSID)
-            NSLog("FallbackWiFi switching to backup: \(backupSSID)")
-            try await wifiManager.connect(to: backupSSID)
-            lastConnectedFallbackSSID = backupSSID
-            currentSSID = backupSSID
-            state = .fallbackActive(backupSSID)
-            NSLog("FallbackWiFi switch complete: \(backupSSID)")
+            let candidates = switchCandidates(from: backups, currentSSID: ssid)
+            try await switchToFirstWorkingBackup(candidates)
         } catch {
             state = .error(error.localizedDescription)
             NSLog("FallbackWiFi check failed: \(error.localizedDescription)")
         }
+    }
+
+    private func inferredFallbackSSIDWhenReadbackFails(backups: [String]) async -> String? {
+        if let lastConnectedFallbackSSID, backups.contains(lastConnectedFallbackSSID) {
+            NSLog("FallbackWiFi inferred current backup from last successful switch: \(lastConnectedFallbackSSID)")
+            return lastConnectedFallbackSSID
+        }
+
+        guard await wifiManager.isLikelyPersonalHotspotConnection() else {
+            return nil
+        }
+
+        let hotspotBackups = backups.filter { backup in
+            let lowercased = backup.localizedLowercase
+            return lowercased.contains("iphone") || lowercased.contains("hotspot")
+        }
+        let inferred = hotspotBackups.count == 1 ? hotspotBackups[0] : backups.count == 1 ? backups[0] : nil
+        guard let inferred else { return nil }
+
+        NSLog("FallbackWiFi inferred current backup from constrained hotspot interface: \(inferred)")
+        return inferred
+    }
+
+    private func poorQualityIfNeeded() async -> ConnectionQuality? {
+        guard settings.qualitySwitchEnabled else { return nil }
+
+        let quality = await qualityChecker.measure()
+        lastQuality = quality
+        return quality.isPoor(
+            maximumLatencyMs: settings.maximumLatencyMs,
+            minimumDownloadMbps: settings.minimumDownloadMbps
+        ) ? quality : nil
+    }
+
+    private func switchCandidates(from backups: [String], currentSSID: String?) -> [String] {
+        guard let currentSSID, let currentIndex = backups.firstIndex(of: currentSSID) else {
+            return backups
+        }
+
+        let laterBackups = backups.dropFirst(currentIndex + 1)
+        return laterBackups.isEmpty ? backups.filter { $0 != currentSSID } : Array(laterBackups)
+    }
+
+    private func switchToFirstWorkingBackup(_ candidates: [String]) async throws {
+        var lastError: Error?
+
+        for candidate in candidates {
+            state = .switching(candidate)
+            NSLog("FallbackWiFi switching to backup: \(candidate)")
+
+            do {
+                try await wifiManager.connect(to: candidate)
+                if postJoinValidationDelayNanoseconds > 0 {
+                    try? await Task.sleep(nanoseconds: postJoinValidationDelayNanoseconds)
+                }
+
+                let hasInternet = await internetChecker.hasInternetAccess()
+                guard hasInternet else {
+                    NSLog("FallbackWiFi backup has no internet after join: \(candidate)")
+                    continue
+                }
+
+                if let poorQuality = await poorQualityIfNeeded() {
+                    NSLog("FallbackWiFi backup quality is poor for \(candidate): \(poorQuality.summary)")
+                    continue
+                }
+
+                lastConnectedFallbackSSID = candidate
+                currentSSID = candidate
+                state = .fallbackActive(candidate)
+                NSLog("FallbackWiFi switch complete: \(candidate)")
+                return
+            } catch {
+                lastError = error
+                NSLog("FallbackWiFi backup failed for \(candidate): \(error.localizedDescription)")
+            }
+        }
+
+        if let lastError {
+            throw lastError
+        }
+
+        throw WiFiError.commandFailed("No backup Wi-Fi worked")
     }
 }
