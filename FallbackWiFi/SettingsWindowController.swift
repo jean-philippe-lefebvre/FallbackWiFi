@@ -527,7 +527,7 @@ struct SettingsView: View {
             return "Password saved for this backup. Remove it first before saving a different password."
         }
 
-        return "Enter the Wi-Fi password once so automatic switches can join without asking macOS."
+        return "Enter the Wi-Fi password once. FallbackWiFi stores it in a private local app file so rebuilds do not trigger Keychain prompts."
     }
 
     private var statusColor: Color {

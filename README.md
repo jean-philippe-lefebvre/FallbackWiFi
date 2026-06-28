@@ -14,7 +14,7 @@ Tiny macOS menu bar app that switches to a selected backup Wi-Fi when the curren
 
 - Manage a prioritized list of backup Wi-Fi networks.
 - Skip backup Wi-Fi networks that are not visible nearby before attempting to join.
-- Save the backup Wi-Fi password once in the app's Keychain item.
+- Save the backup Wi-Fi password once in a private local app file.
 - Assign a distinct menu bar active color to each backup Wi-Fi.
 - Optionally switch when ping/download quality falls below configured thresholds.
 - Keep the menu bar icon monochrome during normal use.
@@ -46,7 +46,7 @@ The menu also shows the active fallback network while keeping the quick actions 
 
 ### Backup settings
 
-Backups can be prioritized, assigned per-network colors, and configured with a saved Keychain password.
+Backups can be prioritized, assigned per-network colors, and configured with a locally saved password.
 
 <p>
   <img src="assets/screenshots/settings-backups.png" alt="FallbackWiFi backup settings window" width="654">
