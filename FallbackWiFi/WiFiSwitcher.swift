@@ -172,18 +172,19 @@ final class WiFiSwitcher: ObservableObject {
     }
 
     private func inferredFallbackSSIDWhenReadbackFails(backups: [String]) async -> String? {
-        if let lastConnectedFallbackSSID, backups.contains(lastConnectedFallbackSSID) {
-            NSLog("FallbackWiFi inferred current backup from last successful switch: \(lastConnectedFallbackSSID)")
-            return lastConnectedFallbackSSID
+        guard await wifiManager.isLikelyPersonalHotspotConnection() else {
+            lastConnectedFallbackSSID = nil
+            return nil
         }
 
-        guard await wifiManager.isLikelyPersonalHotspotConnection() else {
-            return nil
+        if let lastConnectedFallbackSSID, backups.contains(lastConnectedFallbackSSID) {
+            NSLog("FallbackWiFi inferred current backup from last successful hotspot switch: \(lastConnectedFallbackSSID)")
+            return lastConnectedFallbackSSID
         }
 
         let hotspotBackups = backups.filter { backup in
             let lowercased = backup.localizedLowercase
-            return lowercased.contains("iphone") || lowercased.contains("hotspot")
+            return isPersonalHotspotCandidate(lowercased)
         }
         let inferred = hotspotBackups.count == 1 ? hotspotBackups[0] : backups.count == 1 ? backups[0] : nil
         guard let inferred else { return nil }

@@ -138,11 +138,38 @@ final class WiFiSwitcherTests: XCTestCase {
         await switcher.checkNow(allowSwitch: true)
         wifiManager.currentNetworkValue = nil
         wifiManager.connectedSSID = nil
+        wifiManager.likelyPersonalHotspot = true
         internetChecker.hasAccess = true
 
         await switcher.checkNow(allowSwitch: true)
 
         XCTAssertEqual(switcher.state, .fallbackActive("JP iPhone"))
+    }
+
+    func testStaleFallbackStateClearsWhenSSIDReadbackFailsOutsideHotspot() async {
+        let settings = makeSettings()
+        settings.backupSSID = "JP iPhone"
+        settings.autoSwitchEnabled = true
+        let wifiManager = FakeWiFiManager(currentNetwork: "Home WiFi")
+        let internetChecker = FakeInternetChecker(hasAccess: false)
+        wifiManager.onConnect = { _ in internetChecker.hasAccess = true }
+        let switcher = WiFiSwitcher(
+            settings: settings,
+            wifiManager: wifiManager,
+            internetChecker: internetChecker,
+            postJoinValidationDelayNanoseconds: 0
+        )
+
+        await switcher.checkNow(allowSwitch: true)
+        wifiManager.currentNetworkValue = nil
+        wifiManager.connectedSSID = nil
+        wifiManager.likelyPersonalHotspot = false
+        internetChecker.hasAccess = true
+
+        await switcher.checkNow(allowSwitch: true)
+
+        XCTAssertEqual(switcher.currentSSID, nil)
+        XCTAssertEqual(switcher.state, .primaryOnline(nil))
     }
 
     func testLikelyHotspotInfersIPhoneBackupWhenSSIDReadbackIsUnavailableOnLaunch() async {

@@ -56,7 +56,11 @@ struct SystemWiFiManager: WiFiManaging {
         guard result.exitCode == 0 else {
             throw WiFiError.commandFailed(result.standardError)
         }
-        return WiFiParsing.currentNetwork(from: result.standardOutput)
+        if let ssid = WiFiParsing.currentNetwork(from: result.standardOutput) {
+            return ssid
+        }
+
+        return await currentNetworkFromCoreWLAN()
     }
 
     func connect(to ssid: String) async throws {
@@ -116,6 +120,17 @@ struct SystemWiFiManager: WiFiManaging {
             }
 
             try interface.associate(to: network, password: password)
+        }.value
+    }
+
+    private func currentNetworkFromCoreWLAN() async -> String? {
+        await Task.detached {
+            guard let ssid = CWWiFiClient.shared().interface()?.ssid() else {
+                return nil
+            }
+
+            let trimmed = ssid.trimmingCharacters(in: .whitespacesAndNewlines)
+            return trimmed.isEmpty ? nil : trimmed
         }.value
     }
 
