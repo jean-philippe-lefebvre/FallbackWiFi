@@ -47,6 +47,7 @@ The menu also shows the active fallback network while keeping the quick actions 
 ### Backup settings
 
 Backups can be prioritized, assigned per-network colors, and configured with a locally saved password.
+FallbackWiFi writes the password to a private Application Support file and keeps a private recovery copy under Preferences so it can restore the password if the primary file disappears.
 
 <p>
   <img src="assets/screenshots/settings-backups.png" alt="FallbackWiFi backup settings window" width="654">
